@@ -1,0 +1,42 @@
+[project]
+name = "graphix_perceval_backend"
+version = "1"
+
+[tool.setuptools.packages.find]
+include = ["graphix_perceval_backend"]
+
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+preview = true
+select = ["ALL"]
+extend-ignore = [
+  "D203", # `incorrect-blank-line-before-class` (D203) and `no-blank-line-before-class` (D211) are incompatible. Ignoring `incorrect-blank-line-before-class`.
+  "D213", # `multi-line-summary-first-line` (D212) and `multi-line-summary-second-line` (D213) are incompatible. Ignoring `multi-line-summary-second-line`.
+
+  # Conflicts with ruff format
+  "COM812"
+]
+# Allow "α" (U+03B1 GREEK SMALL LETTER ALPHA) which could be confused for "a"
+# Allow "×" (U+00D7 MULTIPLICATION SIGN) which could be confused for "x"
+allowed-confusables = ["α", "×"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.pylint]
+max-returns = 15
+max-branches = 15
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = ["S101"] # assert
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.mypy]
+exclude = ["examples"]
+ignore_missing_imports = true
+follow_untyped_imports = true
+strict = true
