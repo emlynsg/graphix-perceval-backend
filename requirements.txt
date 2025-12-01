@@ -1,2 +1,2 @@
 graphix @ git+https://github.com/TeamGraphix/graphix@master
-perceval @ git+https://github.com/Quandela/Perceval@main
+perceval-quandela @ git+https://github.com/Quandela/Perceval@main
