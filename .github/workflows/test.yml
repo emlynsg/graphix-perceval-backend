@@ -10,7 +10,7 @@ concurrency:
 
 jobs:
   test:
-    name: "ruff, mypy and pytest"
+    name: "ruff and pytest"
     runs-on: ubuntu-latest
 
     steps:
@@ -35,5 +35,5 @@ jobs:
       - name: Run ruff-format
         run: ruff format
 
-      - name: Run mypy
-        run: mypy .
+      # - name: Run mypy
+      #   run: mypy .

@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from math import pi
 from typing import TYPE_CHECKING, TypeAlias
 
+from numpy.random import Generator
+
 import numpy as np
 import perceval as pcvl
 import perceval.components as comp
@@ -17,7 +19,7 @@ from graphix.clifford import Clifford
 from graphix.command import CommandKind
 from graphix.fundamentals import Plane
 from graphix.measurements import Measurement
-from graphix.sim.base_backend import Backend
+from graphix.sim.base_backend import Backend, NodeIndex
 from graphix.sim.density_matrix import DensityMatrix
 from graphix.states import BasicStates
 from perceval.components import catalog
@@ -42,7 +44,7 @@ class PercevalBackend(Backend):
     def __init__(
         self,
         source: pcvl.Source,
-        perceval_state: pcvl.StateVector | None
+        perceval_state: pcvl.StateVector | None = None
     ):
 
         self._source = source
@@ -51,6 +53,7 @@ class PercevalBackend(Backend):
         else:
             self._perceval_state = perceval_state
 
+        self.node_index = NodeIndex()
         self._sim = pcvl.simulators.Simulator(pcvl.BackendFactory.get_backend("SLOS"))
         self._sim.set_min_detected_photons_filter(0)
         self._sim.keep_heralds(False)
@@ -89,8 +92,9 @@ class PercevalBackend(Backend):
         init_qubit = zero_mixed_state.sample(1)[0]
 
         # recover amplitudes of input state
-        alpha = data.psi[0]
-        beta = data.psi[1]
+        statevector = data.get_statevector()
+        alpha = statevector[0]
+        beta = statevector[1]
 
         if np.abs(beta) != 0: # if beta = 0, the input is already |0>, no need to do anything
 
@@ -135,7 +139,7 @@ class PercevalBackend(Backend):
 
         self._sim.clear_heralds()
 
-    def measure(self, node: int, measurement: Measurement) -> bool:
+    def measure(self, node: int, measurement: Measurement, rng: Generator | None = None) -> bool:
         """Perform measurement of a node and trace out the qubit.
 
         Parameters

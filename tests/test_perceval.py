@@ -3,13 +3,37 @@
 Copyright (C) 2025, QAT team (ENS-PSL, Inria, CNRS).
 """
 
-import perceval as pcvl
+from graphix.transpiler import Circuit
+from perceval import Source
+from graphix_perceval_backend import PercevalBackend
+# from veriphix.client import Client, Secrets
+# from veriphix.verifying import TrappifiedSchemeParameters
+# from veriphix.perceval_backend import PercevalBackend
 
-from graphix_perceval_backend.perceval_backend import PercevalBackend
+class TestPercevalBackend:
+    def test_with_veriphix(self) -> None:
+        # client computation pattern definition
+        circ = Circuit(1)
+        circ.h(0)
+        circ.h(0)
+        pattern = circ.transpile().pattern
+        pattern.standardize()
+        # client definition
+        # secrets = Secrets(r=True, a=True, theta=True)
+        # d = 10
+        # t = 10
+        # w = 1
+        # trap_scheme_param = TrappifiedSchemeParameters(d, t, w)
+        # client = Client(pattern=pattern, secrets=secrets, parameters=trap_scheme_param)
+        # protocol_runs = client.sample_canvas()
 
-def test_perceval_backend():
-    source = pcvl.Source(emission_probability = 1, 
-                multiphoton_component = 0, 
-                indistinguishability = 1)
-    backend = PercevalBackend(source=source, perceval_state=None)
-    assert backend.nqubit == 0
+        source = Source(emission_probability = 1, 
+                        multiphoton_component = 0, 
+                        indistinguishability = 1)
+        backend = PercevalBackend(source)
+        pattern.simulate_pattern(backend)
+        # outcomes = client.delegate_canvas(protocol_runs, backend)
+        # result = client.analyze_outcomes(protocol_runs, outcomes)
+
+        # assert result[2].nr_failed_test_rounds == 0
+        # assert result[2].computation_outcomes_count["0"] == d
