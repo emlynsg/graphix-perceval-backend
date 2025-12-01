@@ -42,11 +42,14 @@ class PercevalBackend(Backend):
     def __init__(
         self,
         source: pcvl.Source,
-        perceval_state: pcvl.StateVector = pcvl.BasicState()
+        perceval_state: pcvl.StateVector | None
     ):
 
         self._source = source
-        self._perceval_state = perceval_state
+        if perceval_state is None:
+            self._perceval_state = pcvl.BasicState()
+        else:
+            self._perceval_state = perceval_state
 
         self._sim = pcvl.simulators.Simulator(pcvl.BackendFactory.get_backend("SLOS"))
         self._sim.set_min_detected_photons_filter(0)
@@ -55,7 +58,7 @@ class PercevalBackend(Backend):
         ## Ideally we want the state below to be the perceval state,
         ## but this requires creating a new class that inherits from pcvl.StateVector and State
         ## In that case, need to replace all calls to self._perceval_state by self.state
-        super().__init__(DensityMatrix(nqubit = 0), pr_calc = True, rng = None)
+        ## super().__init__(DensityMatrix(nqubit = 0), pr_calc = True, rng = None)
 
     
     @property
