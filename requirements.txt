@@ -1,2 +1,2 @@
-graphix @ git+https://github.com/TeamGraphix/graphix@master
+graphix @ git+https://github.com/TeamGraphix/graphix.git@refs/pull/383/merge
 perceval-quandela @ git+https://github.com/Quandela/Perceval@main
