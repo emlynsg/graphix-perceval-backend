@@ -10,8 +10,6 @@ from dataclasses import dataclass
 from math import pi
 from typing import TYPE_CHECKING, TypeAlias
 
-from numpy.random import Generator
-
 import numpy as np
 import perceval as pcvl
 import perceval.components as comp
@@ -21,7 +19,9 @@ from graphix.fundamentals import Plane
 from graphix.measurements import Measurement
 from graphix.sim.base_backend import Backend, NodeIndex
 from graphix.sim.density_matrix import DensityMatrix
+from graphix.sim.statevec import Statevec
 from graphix.states import BasicStates
+from numpy.random import Generator
 from perceval.components import catalog
 from typing_extensions import assert_never
 
@@ -34,12 +34,12 @@ if TYPE_CHECKING:
 
 class PercevalBackend(Backend):
 
-## possible upgrades:
-## - fix issue with perceval_state (see init)
-## - choice of PNR or threshold detectors (currently only threshold is implemented)
-## - other state generation strategies: with fusions, with RUS gates (would probably required standardised pattern)
-## - add option to keep track and return success probability (adapt add_nodes, entangle_nodes and measure to work with mixed states)
-## - add a mode which does not perform the simulation but only constructs the circuit (with the proper feed-forward), to run on QPU
+    # possible upgrades:
+    # - fix issue with perceval_state (see init)
+    # - choice of PNR or threshold detectors (currently only threshold is implemented)
+    # - other state generation strategies: with fusions, with RUS gates (would probably required standardised pattern)
+    # - add option to keep track and return success probability (adapt add_nodes, entangle_nodes and measure to work with mixed states)
+    # - add a mode which does not perform the simulation but only constructs the circuit (with the proper feed-forward), to run on QPU
 
     def __init__(
         self,
@@ -58,25 +58,28 @@ class PercevalBackend(Backend):
         self._sim.set_min_detected_photons_filter(0)
         self._sim.keep_heralds(False)
 
-        ## Ideally we want the state below to be the perceval state,
-        ## but this requires creating a new class that inherits from pcvl.StateVector and State
-        ## In that case, need to replace all calls to self._perceval_state by self.state
-        ## super().__init__(DensityMatrix(nqubit = 0), pr_calc = True, rng = None)
+        # Ideally we want the state below to be the perceval state,
+        # but this requires creating a new class that inherits from pcvl.StateVector and State
+        # In that case, need to replace all calls to self._perceval_state by self.state
+        # super().__init__(DensityMatrix(nqubit = 0), pr_calc = True, rng = None)
 
-    
+    def __call__(self) -> PercevalBackend:
+        """Return a copy of the PercevalBackend object."""
+        return self
+
     @property
     def source(self):
         return self._source
-    
-    ## changing how the state works would remove the need to redefine this
+
+    # changing how the state works would remove the need to redefine this
     @property
     def state(self):
         return self._perceval_state
-    
+
     @property
     def nqubit(self) -> int:
-        return int(self.state.m/2)
-    
+        return int(self.state.m / 2)
+
     def copy(self):
         return PercevalBackend(self._source, self._perceval_state)
 
@@ -92,7 +95,12 @@ class PercevalBackend(Backend):
         init_qubit = zero_mixed_state.sample(1)[0]
 
         # recover amplitudes of input state
-        statevector = data.get_statevector()
+        if isinstance(data, Statevec):
+            statevector = data.psi
+            if data.nqubit != 1:
+                raise ValueError("input state must be a single qubit state")
+        else:
+            statevector = data.get_statevector()
         alpha = statevector[0]
         beta = statevector[1]
 

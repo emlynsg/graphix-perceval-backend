@@ -5,9 +5,10 @@ Copyright (C) 2025, QAT team (ENS-PSL, Inria, CNRS).
 
 from graphix.transpiler import Circuit
 from perceval import Source
-from graphix_perceval_backend import PercevalBackend
 from veriphix.client import Client, Secrets
 from veriphix.verifying import TrappifiedSchemeParameters
+
+from graphix_perceval_backend import PercevalBackend
 
 
 class TestPercevalBackend:
