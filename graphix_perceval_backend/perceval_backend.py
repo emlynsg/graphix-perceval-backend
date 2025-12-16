@@ -8,13 +8,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
+import numpy.typing as npt
 import perceval as pcvl
 import perceval.components as comp
 from graphix.command import CommandKind
 from graphix.fundamentals import Plane
 from graphix.sim.base_backend import Backend, NodeIndex
 from graphix.sim.statevec import Statevec
-from graphix.states import BasicStates
+from graphix.states import BasicStates, PlanarState
 from perceval.components import catalog
 
 if TYPE_CHECKING:
@@ -267,3 +268,65 @@ class PercevalBackend(Backend):
     def finalize(self, output_nodes: Iterable[int]) -> None:
         """To be run at the end of pattern simulation."""
         self.sort_qubits(output_nodes)
+
+
+def perceval_single_qubit_statevector_to_graphix_statevec(psvec: pcvl.StateVector) -> Statevec:
+    """Convert a Perceval StateVector to a Graphix Statevec.
+
+    Parameters
+    ----------
+    psvec : pcvl.StateVector
+        Perceval StateVector to convert.
+
+    Returns
+    -------
+    Statevec
+        Graphix Statevec.
+
+    """
+    basic_states = [0.0 + 0.0j] * psvec.m
+    for basic_state, amplitude in psvec:
+        basic_states[basic_state.photon2mode(0)] = amplitude
+    return Statevec(data=basic_states, nqubit=1)
+
+
+def graphix_planar_state_to_perceval_statevec(planar_state: PlanarState) -> pcvl.StateVector:
+    """Convert a Graphix PlanarState to a Perceval StateVector.
+
+    Parameters
+    ----------
+    planar_state : PlanarState
+        Graphix PlanarState to convert.
+
+    Returns
+    -------
+    pcvl.StateVector
+        Perceval StateVector.
+
+    """
+    return pcvl.StateVector(planar_state.get_statevector())
+
+
+def graphix_state_to_perceval_statevec(statevec: npt.NDArray) -> pcvl.StateVector:
+    """Convert a Graphix Statevec to a Perceval StateVector.
+
+    Parameters
+    ----------
+    statevec : Statevec
+        Graphix Statevec to convert.
+
+    Returns
+    -------
+    pcvl.StateVector
+        Perceval StateVector.
+
+    """
+    n_qubit = len(statevec)
+    fock_states = []
+    amplitudes = []
+    for index, amplitude in enumerate(statevec):
+        fock_state = [0] * n_qubit
+        fock_state[index] = 1
+        amplitudes.append(amplitude)
+        fock_states.append(fock_state)
+    return sum(amplitudes[i] * pcvl.StateVector(fock_states) for i in range(len(amplitudes)))
