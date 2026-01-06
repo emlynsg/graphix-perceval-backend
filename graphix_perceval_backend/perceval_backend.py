@@ -80,22 +80,42 @@ class PercevalBackend(Backend):
 
         Parameters
         ----------
-            nodes: list of nodes to add
-            data: state to initialize the nodes with
+        nodes : Iterable[int]
+            List of nodes to add
+        data : Data
+            State to initialize the nodes with. Can be:
+            - Single State: broadcast to all nodes
+            - List of States: one per node (must match length)
+            - Statevec: must be single qubit
 
         Raises
         ------
-            ValueError: if the input state is not a single qubit state
+        ValueError
+            If the input state is not a single qubit state, or if list length doesn't match nodes
 
         """
-        # path-encoded |0> state
+        nodes_list = list(nodes)
+
+        # Handle list of states - add nodes one at a time
+        if isinstance(data, list):
+            if len(data) != len(nodes_list):
+                msg = f"Length mismatch: {len(data)} states for {len(nodes_list)} nodes"
+                raise ValueError(msg)
+            # Add nodes one at a time with individual states
+            for node, state in zip(nodes_list, data, strict=True):
+                self.add_nodes([node], state)
+            return
+
+        # Single state for all nodes - use ORIGINAL logic (don't loop)
+        # path-encoded |0⟩ state
         zero_mixed_state = self._source.generate_distribution(pcvl.BasicState([1, 0]))
-        # Here we explicitely choose not to deal with mixed states by sampling a single input state from the distribution above.
-        # This means we cannot compute the fraction of successful runs and may run into post-selection problems (see measure function).
+        # We choose not to deal with mixed states by sampling a single input state from the distribution above.
+        # => cannot compute fraction of successful runs, may run into post-selection problems (see measure function).
         # This is done because perceval does not (for now) handle measurements on SVDistribution (mixed states).
-        # Those cannot be translated to DensityMatrix objects (which can be measured) since DensityMatrix does not handle distinguishable photons (yet).
+        # Cannot be made DensityMatrix (can be measured) since DensityMatrix doesn't handle distinguishable photons.
         # One solution would be to manually implement measurements on SVDistributions.
         init_qubit = zero_mixed_state.sample(1)[0]
+
         # recover amplitudes of input state
         if isinstance(data, Statevec):
             statevector = data.psi
@@ -104,10 +124,11 @@ class PercevalBackend(Backend):
                 raise ValueError(msg)
         else:
             statevector = data.get_statevector()
+
         alpha = statevector[0]
         beta = statevector[1]
-        if np.abs(beta) != 0:  # if beta = 0, the input is already |0>, no need to do anything
-            # construct unitary matrix taking |0> to the state psi
+        if np.abs(beta) != 0:  # if beta = 0, the input is already |0⟩, no need to do anything
+            # construct unitary matrix taking |0⟩ to the state psi
             gamma = np.abs(beta)
             delta = -np.conjugate(alpha) * gamma / np.conjugate(beta)
             matrix = pcvl.Matrix(np.asarray([[alpha, gamma], [beta, delta]]))
@@ -196,8 +217,8 @@ class PercevalBackend(Backend):
         self._sim.set_circuit(meas_circ)
         self._perceval_state = self._sim.evolve(self._perceval_state)
 
-        # the measure function returns a dictionary where the keys are the possible measurement outcomes (as pcvl.BasicState s)
-        # and the values are the results (the first is the probability of obtaining that outcome, the second is the remaining state, after collapse)
+        # measure returns a dictionary where the keys are the possible measurement outcomes (as pcvl.BasicState s)
+        # values are results (the first is the probability of obtaining that outcome, the second is the remaining state)
         # in order to sample from these outcomes, we construct a pcvl.BSDistribution
         all_possible_meas_outcomes = self._perceval_state.measure([2 * index, 2 * index + 1])
         outcome_dist = {}
@@ -213,7 +234,10 @@ class PercevalBackend(Backend):
         ps = pcvl.PostSelect("([0] > 0 & [1] == 0) | ([0] == 0 & [1] > 0)")
         ps_outcomes = pcvl.utils.postselect.post_select_distribution(outcomes, ps)[0]
         meas_result = ps_outcomes.sample(1)[0]
-        result = meas_result[0] == 0
+
+        # logical |0> is |1, 0> (photon in mode 0) -> result 0
+        # logical |1> is |0, 1> (photon in mode 1) -> result 1
+        result = 0 if meas_result[0] == 1 else 1
 
         # we then set the state to the reduced state that corresponds to the sampled outcome
         self._perceval_state = all_possible_meas_outcomes[meas_result][1]
@@ -322,11 +346,13 @@ def graphix_state_to_perceval_statevec(statevec: npt.NDArray) -> pcvl.StateVecto
 
     """
     n_qubit = len(statevec)
-    fock_states = []
-    amplitudes = []
+    result = None
     for index, amplitude in enumerate(statevec):
         fock_state = [0] * n_qubit
         fock_state[index] = 1
-        amplitudes.append(amplitude)
-        fock_states.append(fock_state)
-    return sum(amplitudes[i] * pcvl.StateVector(fock_states) for i in range(len(amplitudes)))
+        state_vec = pcvl.StateVector(fock_state)
+        if result is None:
+            result = amplitude * state_vec
+        else:
+            result += amplitude * state_vec
+    return result if result is not None else pcvl.StateVector()
