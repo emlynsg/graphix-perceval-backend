@@ -3,6 +3,9 @@
 Copyright (C) 2025, QAT team (ENS-PSL, Inria, CNRS).
 """
 
+# ruff: noqa
+# ruff: noqa: PGH004
+
 from typing import TYPE_CHECKING
 
 import numpy as np

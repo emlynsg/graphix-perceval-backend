@@ -3,6 +3,8 @@
 Copyright (C) 2025, QAT team (ENS-PSL, Inria, CNRS).
 """
 
+# ruff: noqa: ANN001
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
@@ -71,6 +73,14 @@ class PercevalBackend(Backend):
         return int(self.state.m / 2)
 
     def copy(self) -> PercevalBackend:
+        """Return a copy of the PercevalBackend object.
+
+        Returns
+        -------
+        PercevalBackend
+            Copy of the PercevalBackend object
+
+        """
         return PercevalBackend(self._source, self._perceval_state)
 
     def add_nodes(self, nodes: Iterable[int], data=BasicStates.PLUS) -> None:  # type: ignore  # noqa: PGH003
@@ -166,7 +176,7 @@ class PercevalBackend(Backend):
 
         self._sim.clear_heralds()
 
-    def measure(self, node: int, measurement: Measurement, rng: Generator | None = None) -> Literal[0, 1]:
+    def measure(self, node: int, measurement: Measurement, rng: Generator | None = None) -> Literal[0, 1]:  # noqa: ARG002
         """Perform measurement of a node and trace out the qubit.
 
         Parameters
@@ -244,7 +254,7 @@ class PercevalBackend(Backend):
         self.node_index.remove(node)
         return result
 
-    def correct_byproduct(self, cmd, measure_method) -> None:  # type: ignore[no-untyped-def]  # noqa: ANN001
+    def correct_byproduct(self, cmd, measure_method) -> None:  # type: ignore[no-untyped-def]
         """Byproduct correction correct for the X or Z byproduct operators, by applying the X or Z gate."""
         if np.mod(sum(measure_method.get_measure_result(j) for j in cmd.domain), 2) == 1:
             index = self.node_index.index(cmd.node)

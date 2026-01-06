@@ -1,4 +1,4 @@
-"""Configuration file for tests for backend interface between Graphix and Quandela's Perceval package for pattern simulation.
+"""Configuration file for testing backend interface between Graphix and Perceval.
 
 Copyright (C) 2025, QAT team (ENS-PSL, Inria, CNRS).
 """
@@ -38,10 +38,11 @@ def fx_rng(fx_bg: PCG64) -> Generator:
 @pytest.fixture
 def hadamardpattern() -> Pattern:
     """Fixture for Hadamard pattern.
-    
+
     Returns
     -------
         Hadamard pattern
+
     """
     circ = Circuit(1)
     circ.h(0)
