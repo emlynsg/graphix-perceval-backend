@@ -20,6 +20,8 @@ from graphix.sim.statevec import Statevec
 from graphix.states import BasicStates, PlanarState
 from perceval.components import catalog
 
+PRECISION = 1e-15
+
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
@@ -31,14 +33,17 @@ if TYPE_CHECKING:
 class PercevalBackend(Backend):
     """Backend interface between Graphix and Quandela's Perceval package for pattern simulation."""
 
-    # possible upgrades:
-    # - fix issue with perceval_state (see init)
-    # - choice of PNR or threshold detectors (currently only threshold is implemented)
-    # - other state generation strategies: with fusions, with RUS gates (would probably required standardised pattern)
-    # - add option to track and return success probability (adapt add_nodes, entangle_nodes, measure to work with mixed states)  # noqa: E501
-    # - add a mode which does not perform the simulation but only constructs the circuit (with the proper feed-forward), to run on QPU  # noqa: E501
+    def __init__(self, source: pcvl.Source, perceval_state: pcvl.StateVector | None = None) -> None:
+        """Initialize PercevalBackend.
 
-    def __init__(self, source: pcvl.Source, perceval_state: pcvl.StateVector | None = None) -> None:  # noqa: D107
+        Parameters
+        ----------
+        source : pcvl.Source
+            Photon source configuration.
+        perceval_state : pcvl.StateVector | None
+            Initial state (default: empty).
+
+        """
         self._source = source
         if perceval_state is None:
             self._perceval_state = pcvl.BasicState()
@@ -50,26 +55,24 @@ class PercevalBackend(Backend):
         self._sim.set_min_detected_photons_filter(0)
         self._sim.keep_heralds(False)  # noqa: FBT003
 
-        # Ideally we want the state below to be the perceval state,
-        # but this requires creating a new class that inherits from pcvl.StateVector and State
-        # In that case, need to replace all calls to self._perceval_state by self.state
-        # super().__init__(DensityMatrix(nqubit = 0), pr_calc = True, rng = None)  # noqa: ERA001
-
     def __call__(self) -> PercevalBackend:
         """Return a copy of the PercevalBackend object."""  # noqa: DOC201
         return self
 
     @property
-    def source(self) -> pcvl.Source:  # noqa: D102
+    def source(self) -> pcvl.Source:
+        """Return the photon source of the backend."""
         return self._source
 
     # changing how the state works would remove the need to redefine this
     @property
-    def state(self) -> pcvl.StateVector:  # noqa: D102
+    def state(self) -> pcvl.StateVector:
+        """Return the internal perceval state."""
         return self._perceval_state
 
     @property
-    def nqubit(self) -> int:  # noqa: D102
+    def nqubit(self) -> int:
+        """Return the number of qubits in the system."""
         return int(self.state.m / 2)
 
     def copy(self) -> PercevalBackend:
@@ -85,8 +88,6 @@ class PercevalBackend(Backend):
 
     def add_nodes(self, nodes: Iterable[int], data=BasicStates.PLUS) -> None:  # type: ignore  # noqa: PGH003
         """Add nodes to the perceval system.
-
-        TODO: implement add_nodes for mixed states
 
         Parameters
         ----------
@@ -119,11 +120,6 @@ class PercevalBackend(Backend):
         # Single state for all nodes - use ORIGINAL logic (don't loop)
         # path-encoded |0⟩ state
         zero_mixed_state = self._source.generate_distribution(pcvl.BasicState([1, 0]))
-        # We choose not to deal with mixed states by sampling a single input state from the distribution above.
-        # => cannot compute fraction of successful runs, may run into post-selection problems (see measure function).
-        # This is done because perceval does not (for now) handle measurements on SVDistribution (mixed states).
-        # Cannot be made DensityMatrix (can be measured) since DensityMatrix doesn't handle distinguishable photons.
-        # One solution would be to manually implement measurements on SVDistributions.
         init_qubit = zero_mixed_state.sample(1)[0]
 
         # recover amplitudes of input state
@@ -137,7 +133,7 @@ class PercevalBackend(Backend):
 
         alpha = statevector[0]
         beta = statevector[1]
-        if np.abs(beta) != 0:  # if beta = 0, the input is already |0⟩, no need to do anything
+        if np.abs(beta) > PRECISION:  # if beta = 0, the input is already |0⟩, no need to do anything
             # construct unitary matrix taking |0⟩ to the state psi
             gamma = np.abs(beta)
             delta = -np.conjugate(alpha) * gamma / np.conjugate(beta)
@@ -149,7 +145,24 @@ class PercevalBackend(Backend):
         self._perceval_state *= init_qubit
         self.node_index.extend(nodes)
 
-    def entangle_nodes(self, edge: tuple[int, int]) -> None:  # noqa: D102
+    def entangle_nodes(self, edge: tuple[int, int]) -> None:
+        """Entangle two nodes using a heralded CZ gate.
+
+        Parameters
+        ----------
+        edge : tuple[int, int]
+            Nodes to entangle.
+
+        Raises
+        ------
+        ValueError
+            If nodes in the edge are not in the current node_index.
+
+        """
+        if edge[0] not in self.node_index or edge[1] not in self.node_index:
+            msg = f"Nodes {edge} not in current node_index"
+            raise ValueError(msg)
+
         # get optical modes corresponding to edge qubits
         index_0 = self.node_index.index(edge[0])
         index_1 = self.node_index.index(edge[1])
@@ -157,9 +170,6 @@ class PercevalBackend(Backend):
         target = max(index_0, index_1)
         cz_input_modes = [2 * ctrl, 2 * ctrl + 1, 2 * target, 2 * target + 1]
 
-        # We construct the circuit via the Processor class since this class applies
-        # the correct permutation before and after to place CZ at correct modes
-        # (while the Circuit class does not and returns an error if the modes are not contiguous)
         ent_proc = pcvl.Processor("SLOS", 2 * self.nqubit)
         ent_proc.add(cz_input_modes, catalog["heralded cz"].build_processor())
         ent_circ = ent_proc.linear_circuit()
@@ -186,13 +196,23 @@ class PercevalBackend(Backend):
         measurement : Measurement
             Measurement to perform.
         rng : Generator, optional
-            Random number generator to use for sampling, by default None
+            Random number generator to use for sampling. Defaults to None.
 
         Returns
         -------
-        int
+        Literal[0, 1]
+            Measurement outcome.
+
+        Raises
+        ------
+        ValueError
+            If the node is not in the current node_index.
 
         """
+        if node not in self.node_index:
+            msg = f"Node {node} not in current node_index"
+            raise ValueError(msg)
+
         index = self.node_index.index(node)
 
         meas_circ = pcvl.Circuit(2 * self.nqubit)
@@ -236,11 +256,6 @@ class PercevalBackend(Backend):
             outcome_dist[outcome] = res[0]
         outcomes = pcvl.BSDistribution(outcome_dist)
 
-        # we then post-select the distribution above on having a qubit encoding and sample from it
-        # the post-selection may fail (because we don't simulate the full distribution, see comment in add_nodes)
-        # need to decide how to catch that and what to do with it
-        # one possibility would be to retry the full computation and count the number of retries
-        # if we're simulating the full distribution instead, we can at this stage recover the success probability
         ps = pcvl.PostSelect("([0] > 0 & [1] == 0) | ([0] == 0 & [1] > 0)")
         ps_outcomes = pcvl.utils.postselect.post_select_distribution(outcomes, ps)[0]
         meas_result = ps_outcomes.sample(1)[0]
@@ -255,7 +270,19 @@ class PercevalBackend(Backend):
         return result
 
     def correct_byproduct(self, cmd, measure_method) -> None:  # type: ignore[no-untyped-def]
-        """Byproduct correction correct for the X or Z byproduct operators, by applying the X or Z gate."""
+        """Apply byproduct correction.
+
+        Corrects for the X or Z byproduct operators by applying the X or Z gate
+        depending on previous measurement outcomes.
+
+        Parameters
+        ----------
+        cmd : Command
+            Byproduct correction command.
+        measure_method : MeasureMethod
+            Measurement method providing results to check correction condition.
+
+        """
         if np.mod(sum(measure_method.get_measure_result(j) for j in cmd.domain), 2) == 1:
             index = self.node_index.index(cmd.node)
             correct_circ = pcvl.Circuit(2 * self.nqubit)
@@ -269,7 +296,25 @@ class PercevalBackend(Backend):
             self._perceval_state = self._sim.evolve(self._perceval_state)
 
     def apply_clifford(self, node: int, clifford: Clifford) -> None:
-        """Apply single-qubit Clifford gate, specified by vop index specified in graphix.clifford.CLIFFORD."""
+        """Apply single-qubit Clifford gate.
+
+        Parameters
+        ----------
+        node : int
+            Node label of the qubit to apply the gate to.
+        clifford : Clifford
+            Clifford gate to apply.
+
+        Raises
+        ------
+        ValueError
+            If the node is not in the current node_index.
+
+        """
+        if node not in self.node_index:
+            msg = f"Node {node} not in current node_index"
+            raise ValueError(msg)
+
         index = self.node_index.index(node)
 
         # use unitary defining the clifford to initialise the perceval circuit
@@ -279,8 +324,24 @@ class PercevalBackend(Backend):
         self._perceval_state = self._sim.evolve(self._perceval_state)
 
     def sort_qubits(self, output_nodes: Iterable[int]) -> None:
-        """Sort the qubit order in internal statevector."""
-        # not tested, checked code only on classical outputs
+        """Sort the qubit order in internal statevector.
+
+        Parameters
+        ----------
+        output_nodes : Iterable[int]
+            Desired order of output nodes.
+
+        Raises
+        ------
+        ValueError
+            If any of the output_nodes are not in the current node_index.
+
+        """
+        for node in output_nodes:
+            if node not in self.node_index:
+                msg = f"Output node {node} not in current nodes"
+                raise ValueError(msg)
+
         if self.nqubit > 0:
             perm_circ = pcvl.Circuit(2 * self.nqubit)
 
@@ -300,12 +361,21 @@ class PercevalBackend(Backend):
             self._perceval_state = self._sim.evolve(self._perceval_state)
 
     def finalize(self, output_nodes: Iterable[int]) -> None:
-        """To be run at the end of pattern simulation."""
+        """Finalize the simulation by sorting the output qubits.
+
+        Parameters
+        ----------
+        output_nodes : Iterable[int]
+            Desired order of output nodes.
+
+        """
         self.sort_qubits(output_nodes)
 
 
-def perceval_single_qubit_statevector_to_graphix_statevec(psvec: pcvl.StateVector) -> Statevec:
-    """Convert a Perceval StateVector to a Graphix Statevec.
+def perceval_statevector_to_graphix_statevec(psvec: pcvl.StateVector) -> Statevec:
+    """Convert a multi-qubit Perceval StateVector to a Graphix Statevec.
+
+    Uses path encoding (2 modes per qubit).
 
     Parameters
     ----------
@@ -317,11 +387,30 @@ def perceval_single_qubit_statevector_to_graphix_statevec(psvec: pcvl.StateVecto
     Statevec
         Graphix Statevec.
 
+    Raises
+    ------
+    ValueError
+        If the number of modes is not even.
+
     """
-    basic_states = [0.0 + 0.0j] * psvec.m
+    n_qubit = psvec.m // 2
+    if psvec.m % 2 != 0:
+        msg = f"Expected even number of modes for path encoding, got {psvec.m}"
+        raise ValueError(msg)
+
+    data = np.zeros(2**n_qubit, dtype=np.complex128)
     for basic_state, amplitude in psvec:
-        basic_states[basic_state.photon2mode(0)] = amplitude
-    return Statevec(data=basic_states, nqubit=1)
+        # Extract photon modes for each qubit
+        # Path encoding uses one photon per mode pair (2i, 2i+1)
+        # The basis index is calculated as the sum of (bit_i * 2^(n-1-i))
+        index = 0
+        for i in range(n_qubit):
+            # Check if photon is in mode 2i+1 (logical |1>)
+            if basic_state[2 * i + 1] == 1:
+                index += 2 ** (n_qubit - 1 - i)
+        data[index] = amplitude
+
+    return Statevec(data=data, nqubit=n_qubit)
 
 
 def graphix_planar_state_to_perceval_statevec(planar_state: PlanarState) -> pcvl.StateVector:
@@ -335,34 +424,64 @@ def graphix_planar_state_to_perceval_statevec(planar_state: PlanarState) -> pcvl
     Returns
     -------
     pcvl.StateVector
-        Perceval StateVector.
+        Perceval StateVector (2-mode path encoding).
 
     """
-    return pcvl.StateVector(planar_state.get_statevector())
+    statevector = planar_state.get_statevector()
+    alpha = statevector[0]
+    beta = statevector[1]
+    return alpha * pcvl.StateVector([1, 0]) + beta * pcvl.StateVector([0, 1])
 
 
 def graphix_state_to_perceval_statevec(statevec: npt.NDArray) -> pcvl.StateVector:
-    """Convert a Graphix Statevec to a Perceval StateVector.
+    """Convert a Graphix statevector to a Perceval StateVector.
+
+    Uses path encoding (2 modes per qubit).
 
     Parameters
     ----------
-    statevec : Statevec
-        Graphix Statevec to convert.
+    statevec : npt.NDArray
+        Graphix statevector to convert.
 
     Returns
     -------
     pcvl.StateVector
-        Perceval StateVector.
+        Perceval StateVector (2n modes).
+
+    Raises
+    ------
+    ValueError
+        If the length of statevec is not a power of 2.
 
     """
-    n_qubit = len(statevec)
+    n_qubit = int(np.log2(len(statevec)))
+    if 2**n_qubit != len(statevec):
+        msg = f"Statevec length {len(statevec)} is not a power of 2"
+        raise ValueError(msg)
+
     result = None
     for index, amplitude in enumerate(statevec):
-        fock_state = [0] * n_qubit
-        fock_state[index] = 1
+        if np.abs(amplitude) < PRECISION:
+            continue
+
+        # Basis state binary representation
+        # Graphix uses lexicographical order: index 1 with 2 qubits is |01>
+        # Correspondingly, qubit 0 is index 0 and qubit 1 is index 1
+        fock_state = [0] * (2 * n_qubit)
+        for i in range(n_qubit):
+            # Extract i-th bit from the left
+            bit_val = (index >> (n_qubit - 1 - i)) & 1
+            if bit_val == 0:
+                fock_state[2 * i] = 1  # Logic 0 maps to mode 2i
+            else:
+                fock_state[2 * i + 1] = 1  # Logic 1 maps to mode 2i+1
+
         state_vec = pcvl.StateVector(fock_state)
+        # Convert numpy amplitude to complex to avoid type incompatibility
+        term = complex(amplitude) * state_vec
         if result is None:
-            result = amplitude * state_vec
+            result = term
         else:
-            result += amplitude * state_vec
+            result += term
+
     return result if result is not None else pcvl.StateVector()
