@@ -65,7 +65,14 @@ class PercevalState:
         return self.pcvl_state.m
 
     def __iter__(self):
-        """Iterate over the underlying Perceval StateVector."""
+        """Iterate over the underlying Perceval StateVector.
+
+        Returns
+        -------
+        iterator
+            Iterator over the Perceval StateVector.
+
+        """
         return iter(self.pcvl_state)
 
     def evolve(self, circuit: pcvl.Circuit, heralds: dict | None = None) -> None:
@@ -202,7 +209,14 @@ class PercevalState:
         return PercevalState(self.source, self.pcvl_state)
 
     def to_graphix_statevec(self) -> Statevec:
-        """Convert to a Graphix Statevec object."""
+        """Convert to a Graphix Statevec object.
+
+        Returns
+        -------
+        Statevec
+            Graphix Statevec object.
+
+        """
         return perceval_statevector_to_graphix_statevec(self.pcvl_state)
 
 
