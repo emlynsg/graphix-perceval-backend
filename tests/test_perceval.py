@@ -44,35 +44,29 @@ class IXYZ_Meta(type):
         return iter(graphix.fundamentals.IXYZ)
 
     def __call__(cls, arg):
-        # This mimics instantiation IXYZ(value) -> Member
-        if isinstance(arg, int):
-            # In old graphix, IXYZ(0) is I. In new graphix, IXYZ_VALUES[0] is I.
-            # veriphix calls IXYZ(pauli + 1) where pauli is 0, 1, 2 (X, Y, Z).
             if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
                 try:
                     return graphix.fundamentals.IXYZ_VALUES[arg]
                 except (IndexError, TypeError):
                     pass
-            # Try original IXYZ if it's callable (older graphix)
             if hasattr(graphix.fundamentals, "IXYZ") and callable(graphix.fundamentals.IXYZ):
                 try:
                     return graphix.fundamentals.IXYZ(arg)
                 except TypeError:
-                    # It's explicitly a Union or Alias that failed
                     pass
+
+            # Fallback if arg is out of range
+            if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
+                return graphix.fundamentals.IXYZ_VALUES[0]
         return arg
 
     def __instancecheck__(cls, instance):
         if hasattr(graphix.fundamentals, "Axis") and isinstance(instance, graphix.fundamentals.Axis):
             return True
         if hasattr(graphix.fundamentals, "IXYZ"):
-            # If IXYZ is a type (class/Enum), check normally
             if isinstance(graphix.fundamentals.IXYZ, type):
                 return isinstance(instance, graphix.fundamentals.IXYZ)
-            # If it's a Union (typing.Union), we can't use isinstance simply.
-            # But Axis/I check above covers new graphix.
             pass
-        # Handle singleton I in new graphix
         if hasattr(graphix.fundamentals, "I") and instance is graphix.fundamentals.I:
             return True
         return False
@@ -246,7 +240,7 @@ class TestPercevalBackend:
         # Multiphoton component introduces noise, so fidelity should drop below 1
         # The observed fidelity is around 0.88 for multiphoton_component=0.1
         fidelity = np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten()))
-        assert fidelity > 0.8 & fidelity < 1
+        assert 0.8 < fidelity < 1.0
 
         #  TODO: Figure out how to define this test to reduce number of captured qubits.  # noqa: FIX002, TD002, TD003
 
@@ -268,7 +262,7 @@ class TestPercevalBackend:
 
         # Indistinguishability < 1 introduces noise/mixed states, so fidelity drops
         fidelity = np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten()))
-        assert fidelity > 0.8 & fidelity < 1
+        assert 0.8 < fidelity < 1.0
 
     @pytest.mark.parametrize(
         "state",
