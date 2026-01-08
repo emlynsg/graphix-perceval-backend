@@ -1,5 +1,5 @@
 # graphix-perceval-backend
-Simulation backend interface between Graphix and Quandela's Perceval package.
+Simulation backend interface between Graphix and Perceval.
 
 ## Implementation Notes
 
@@ -11,10 +11,10 @@ Simulation backend interface between Graphix and Quandela's Perceval package.
 
 ## Future Improvements / TODOs
 
-- **State Representation**: Refactor to use a dedicated state class inheriting from `pcvl.StateVector`.
-- **Measurement Selection**: Implement choice of PNR or threshold detectors (currently only threshold implemented).
-- **State Generation**: Add alternative state generation strategies, such as using fusions or RUS gates.
-- **Mixed State Support**: Implement `add_nodes` and measurements for mixed states to track success probabilities.
-- **QPU Mode**: Add a mode that constructs the linear optical circuit (with feed-forward) instead of simulating, for execution on a QPU.
-- **Sorting**: Thoroughly test `sort_qubits` (currently only checked on classical outputs).
-- **Measurement Planes**: Properly test YZ and XZ plane measurements (currently only XY plane is extensively tested).
+- Refactor to use a dedicated state class inheriting from `pcvl.StateVector`.
+- Implement choice of detectors.
+- Add alternative state generation strategies.
+- Implement `add_nodes` and measurements for mixed states to track success probabilities.
+- Add a mode that constructs the linear optical circuit (with feed-forward) instead of simulating, for execution on a QPU.
+- Thoroughly test `sort_qubits` (currently only checked on classical outputs).
+- Properly test YZ and XZ plane measurements (currently only XY plane is tested).
