@@ -6,6 +6,14 @@ Copyright (C) 2025, QAT team (ENS-PSL, Inria, CNRS).
 # ruff: noqa
 # ruff: noqa: PGH004
 
+import graphix.pauli
+import graphix.fundamentals
+
+# Monkeypatch for graphix.pauli.IXYZ which is missing at runtime in recent graphix master
+# but required by some versions of veriphix.
+if not hasattr(graphix.pauli, "IXYZ"):
+    graphix.pauli.IXYZ = graphix.fundamentals.IXYZ
+
 from typing import TYPE_CHECKING
 
 import numpy as np
