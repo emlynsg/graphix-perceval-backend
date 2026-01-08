@@ -44,20 +44,18 @@ class IXYZ_Meta(type):
         return iter(graphix.fundamentals.IXYZ)
 
     def __call__(cls, arg):
-            if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
-                try:
-                    return graphix.fundamentals.IXYZ_VALUES[arg]
-                except (IndexError, TypeError):
-                    pass
-            if hasattr(graphix.fundamentals, "IXYZ") and callable(graphix.fundamentals.IXYZ):
-                try:
-                    return graphix.fundamentals.IXYZ(arg)
-                except TypeError:
-                    pass
-
-            # Fallback if arg is out of range
-            if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
-                return graphix.fundamentals.IXYZ_VALUES[0]
+        if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
+            try:
+                return graphix.fundamentals.IXYZ_VALUES[arg]
+            except (IndexError, TypeError):
+                pass
+        if hasattr(graphix.fundamentals, "IXYZ") and callable(graphix.fundamentals.IXYZ):
+            try:
+                return graphix.fundamentals.IXYZ(arg)
+            except TypeError:
+                pass
+        if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
+            return graphix.fundamentals.IXYZ_VALUES[0]
         return arg
 
     def __instancecheck__(cls, instance):
