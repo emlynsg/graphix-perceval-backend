@@ -23,7 +23,7 @@ from perceval.components import catalog
 PRECISION = 1e-15
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Iterable, Iterator
 
     from graphix.clifford import Clifford
     from graphix.measurements import Measurement
@@ -64,7 +64,7 @@ class PercevalState:
         """Return the number of optical modes."""
         return self.pcvl_state.m
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator:
         """Iterate over the underlying Perceval StateVector.
 
         Returns
