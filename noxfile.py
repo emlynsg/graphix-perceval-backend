@@ -1,22 +1,35 @@
+"""Run tests with nox.
+
+Copyright (C) 2026, QAT team (ENS-PSL, Inria, CNRS).
+"""
+
 import nox
+from nox import Session
 
-@nox.session(python=["3.12"])
-def tests(session):
+
+def install_pytest(session: Session) -> None:
+    """Install pytest when requirements-dev.txt is not installed."""
     session.install("pytest")
-    session.install("-r", "requirements.txt")
-    session.install("-r", "requirements-dev.txt")
-    session.install(".")
-    session.run("pytest", "tests/test_perceval.py")
 
-@nox.session(python=["3.12"])
-def lint(session):
-    session.install("ruff")
-    session.run("ruff", "check", ".")
 
-@nox.session(python=["3.12"])
-def mypy(session):
-    session.install("mypy")
-    session.install("-r", "requirements.txt")
-    session.install("-r", "requirements-dev.txt")
+def run_pytest(session: Session) -> None:
+    """Run pytest."""
+    args = ["pytest"]
+    session.run(*args)
+
+
+@nox.session(python=["3.10", "3.11", "3.12", "3.13", "3.14"])
+def tests_minimal(session: Session) -> None:
+    """Run the test suite with minimal dependencies."""
     session.install(".")
-    session.run("mypy", "graphix_perceval_backend", "tests")
+    install_pytest(session)
+    run_pytest(session)
+
+
+@nox.session(python=["3.10", "3.11", "3.12", "3.13", "3.14"])
+def tests_dev(session: Session) -> None:
+    """Run the test suite with dev dependencies."""
+    session.install(".[dev]")
+    # We cannot run `pytest --doctest-modules` here, since some tests
+    # involve optional dependencies, like pyzx.
+    run_pytest(session)
