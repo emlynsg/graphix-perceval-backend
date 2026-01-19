@@ -157,7 +157,6 @@ class TestPercevalBackend:
     def test_with_veriphix() -> None:
         """Verify PercevalBackend integration with the Veriphix trappified verification scheme."""
         # client computation pattern definition
-        np.random.seed(42)
         circ = Circuit(1)
         circ.h(0)
         circ.h(0)

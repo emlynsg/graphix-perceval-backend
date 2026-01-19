@@ -7,6 +7,7 @@ Copyright (C) 2025, QAT team (ENS-PSL, Inria, CNRS).
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
@@ -198,15 +199,16 @@ class PercevalState:
         return 0 if sampled_outcome[0] == 1 else 1
 
     def copy(self) -> PercevalState:
-        """Return a copy of the PercevalState.
+        """Return a deep copy of the PercevalState.
 
         Returns
         -------
         PercevalState
-            Copy of the current state.
+            Deep copy of the PercevalState.
 
         """
-        return PercevalState(self.source, self.pcvl_state)
+        new_state = deepcopy(self.pcvl_state)
+        return PercevalState(self.source, new_state)
 
     def to_graphix_statevec(self) -> Statevec:
         """Convert to a Graphix Statevec object.
