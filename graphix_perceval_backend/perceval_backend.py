@@ -7,6 +7,7 @@ Copyright (C) 2025, QAT team (ENS-PSL, Inria, CNRS).
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import TYPE_CHECKING, Literal
 
 import numpy as np
@@ -206,10 +207,9 @@ class PercevalState:
             Deep copy of the PercevalState.
 
         """
-        new_state = graphix_state_to_perceval_statevec(
-            Statevec(perceval_statevector_to_graphix_statevec(self.pcvl_state))
-        )
-        return PercevalState(self.source, new_state)
+        new_state = deepcopy(self.pcvl_state)
+        new_source = deepcopy(self.source)
+        return PercevalState(new_source, new_state)
 
     def to_graphix_statevec(self) -> Statevec:
         """Convert to a Graphix Statevec object.
@@ -274,7 +274,12 @@ class PercevalBackend(Backend):
             Copy of the PercevalBackend object
 
         """
-        return PercevalBackend(self.source, self.state.copy())
+        new_backend = PercevalBackend(self.source, self.state.copy())
+        new_node_index = NodeIndex()
+        new_node_index.__dict = self.node_index.__dict.copy()  # noqa: SLF001
+        new_node_index.__list = self.node_index.__list.copy()  # noqa: SLF001
+        new_backend.node_index = new_node_index
+        return new_backend
 
     def add_nodes(self, nodes: Iterable[int], data=BasicStates.PLUS) -> None:  # type: ignore  # noqa: PGH003
         """Add nodes to the perceval system.
