@@ -14,6 +14,7 @@ from graphix.fundamentals import ANGLE_PI
 # Monkeypatch for graphix.pauli.IXYZ which has been replaced in recent graphix master
 # and is now a TypeAlias (Union) which cannot be instantiated.
 # veriphix (dev dependency) still expects a callable Enum-like object.
+# TODO: Update Veriphix to use current form of IXYZ, and remove this monkeypatch
 class IXYZ_Meta(type):
     def __getattr__(cls, name):
         # Fallback to IXYZ_VALUES for enum-like access (IXYZ.X, IXYZ.Y, IXYZ.Z)
