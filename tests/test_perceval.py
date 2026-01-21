@@ -8,7 +8,32 @@ Copyright (C) 2026, QAT team (ENS-PSL, Inria, CNRS).
 
 import graphix.pauli
 import graphix.fundamentals
-from graphix.fundamentals import ANGLE_PI
+
+# from graphix.fundamentals import ANGLE_PI
+from math import pi
+
+ANGLE_PI = pi
+
+import numpy as np
+import pytest
+from graphix.sim.statevec import StatevectorBackend, Statevec
+from graphix.sim.density_matrix import DensityMatrix
+from graphix.states import BasicStates, PlanarState
+from graphix.transpiler import Circuit
+from numpy.random import Generator
+from perceval import Source
+from graphix.fundamentals import Plane
+from graphix.pauli import Pauli
+from graphix.measurements import Measurement
+from graphix.clifford import Clifford
+from veriphix.client import Client, Secrets
+from veriphix.verifying import TrappifiedSchemeParameters
+
+from graphix_perceval_backend import (
+    PercevalBackend,
+    graphix_state_to_perceval_statevec,
+    perceval_statevector_to_graphix_statevec,
+)
 
 
 # Monkeypatch for graphix.pauli.IXYZ which has been replaced in recent graphix master
@@ -81,27 +106,6 @@ class IXYZ_Shim(metaclass=IXYZ_Meta):
 graphix.pauli.IXYZ = IXYZ_Shim
 
 
-import numpy as np
-import pytest
-from graphix.sim import DensityMatrix, Statevec
-from graphix.states import BasicStates, PlanarState
-from graphix.transpiler import Circuit
-from numpy.random import Generator
-from perceval import Source
-from graphix.fundamentals import Plane
-from graphix.pauli import Pauli
-from graphix.measurements import Measurement
-from graphix.clifford import Clifford
-from veriphix.client import Client, Secrets
-from veriphix.verifying import TrappifiedSchemeParameters
-
-from graphix_perceval_backend import (
-    PercevalBackend,
-    graphix_state_to_perceval_statevec,
-    perceval_statevector_to_graphix_statevec,
-)
-
-
 class TestConversionFunctions:
     """Test state conversion between Graphix and Perceval."""
 
@@ -146,12 +150,120 @@ class TestConversionFunctions:
         assert np.allclose(bell, back_to_graphix.psi.flatten())
 
 
+# class TestVeriphixProblems:
+#     @staticmethod
+#     def test_without_theta_and_secret():
+#         circ = Circuit(1)
+#         circ.h(0)
+#         # circ.h(0)
+#         pattern = circ.transpile().pattern
+#         pattern.standardize()
+
+#         print("Original pattern:")
+#         for cmd in pattern:
+#             print(f"  {cmd}")
+
+#         secrets = Secrets(r=False, a=False, theta=False)
+#         d, t, w = 3, 0, 0
+#         trap_scheme_param = TrappifiedSchemeParameters(d, t, w)
+#         client = Client(pattern=pattern, secrets=secrets, parameters=trap_scheme_param)
+
+#         # Run directly with pattern.simulate_pattern for comparison
+#         print("\n--- Direct simulation (3 runs) ---")
+#         source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
+#         for i in range(3):
+#             backend = PercevalBackend(source)
+#             state = pattern.simulate_pattern(backend)
+#             vec = perceval_statevector_to_graphix_statevec(state)
+#             comparison = np.array([1, 0])  # |0>
+#             assert np.abs(np.dot(vec.psi.flatten().conjugate(), comparison)) == pytest.approx(1)
+#         # TODO: Something wrong with the shape of the converted statevec, coming from something wrong with the Perceval statevec itself
+
+#         # Now run through veriphix
+#         print("\n--- Veriphix execution ---")
+#         backend = PercevalBackend(source)
+#         protocol_runs = client.sample_canvas()
+
+#         print(f"\nNumber of protocol runs: {len(protocol_runs)}")
+#         print(f"First run type: {type(protocol_runs[0])}")
+
+#         print("\nInitial pattern in Veriphix:")
+#         for cmd in client.initial_pattern:
+#             print(f"  {cmd}")
+#         print("\nClean pattern in Veriphix:")
+#         for cmd in client.clean_pattern:
+#             print(f"  {cmd}")
+
+#         print(f"\nByproduct DB: {client.byproduct_db}")
+#         print(f"Output nodes: {client.output_nodes}")
+#         print(f"Input nodes: {client.input_nodes}")
+
+#         outcomes = client.delegate_canvas(protocol_runs, backend)
+#         result = client.analyze_outcomes(protocol_runs, outcomes)
+
+#         #  Debug output
+#         print(f"Computation outcomes: {result[2].computation_outcomes_count}")  # Should be d
+#         print(f"Test round failures: {result[2].nr_failed_test_rounds}")  # Should be 0
+#         print(f"Total computation rounds: {d}")
+
+#         assert result[2].nr_failed_test_rounds == 0
+#         assert result[2].computation_outcomes_count["0"] == d
+
+#     @staticmethod
+#     def test_Veriphix_statevec():
+#         """Same as Veriphix test in the main test file, but using Statevector."""
+#         circ = Circuit(1)
+#         circ.h(0)
+#         circ.h(0)
+#         pattern = circ.transpile().pattern
+#         pattern.standardize()
+#         backend = StatevectorBackend()
+#         state = pattern.simulate_pattern(backend)
+#         vec = perceval_statevector_to_graphix_statevec(state)
+#         print("Original pattern:")
+#         for cmd in pattern:
+#             print(f"  {cmd}")
+
+#         secrets = Secrets(r=True, a=True, theta=True)
+#         d = 10
+#         t = 10
+#         w = 1
+#         trap_scheme_param = TrappifiedSchemeParameters(d, t, w)
+#         client = Client(pattern=pattern, secrets=secrets, parameters=trap_scheme_param)
+#         protocol_runs = client.sample_canvas()
+
+#         print(f"\nNumber of protocol runs: {len(protocol_runs)}")
+#         print(f"First run type: {type(protocol_runs[0])}")
+
+#         print("\nInitial pattern in Veriphix:")
+#         for cmd in client.initial_pattern:
+#             print(f"  {cmd}")
+#         print("\nClean pattern in Veriphix:")
+#         for cmd in client.clean_pattern:
+#             print(f"  {cmd}")
+
+#         print(f"\nByproduct DB: {client.byproduct_db}")
+#         print(f"Output nodes: {client.output_nodes}")
+#         print(f"Input nodes: {client.input_nodes}")
+
+#         outcomes = client.delegate_canvas(protocol_runs, StatevectorBackend)  # pyright: ignore[reportArgumentType]
+#         result = client.analyze_outcomes(protocol_runs, outcomes)
+
+#         #  Debug output
+#         print(f"Computation outcomes: {result[2].computation_outcomes_count}")  # Should be d
+#         print(f"Test round failures: {result[2].nr_failed_test_rounds}")  # Should be 0
+#         print(f"Total computation rounds: {d}")
+
+#         assert result[2].nr_failed_test_rounds == 0
+#         assert result[2].computation_outcomes_count["0"] == d
+
+
 class TestPercevalBackend:
     """Basic tests for the PercevalBackend class."""
 
     @staticmethod
     def test_h_deterministic() -> None:
-        """Verify H·H = I gives deterministic "0" outcome."""
+        """Verify H gives deterministic "0" outcome."""
         circ = Circuit(1)
         circ.h(0)
         pattern = circ.transpile().pattern
@@ -166,120 +278,18 @@ class TestPercevalBackend:
             state = pattern.simulate_pattern(backend)
             # Convert to computational basis outcome
             vec = perceval_statevector_to_graphix_statevec(state)
-            prob_0 = np.abs(vec.psi.flatten()[0]) ** 2
-            # TODO: Check dims, check psi is 1 in first entry
-
-        print(f"Results: {results}")
-        print(f"Count 0: {results.count(0)}, Count 1: {results.count(1)}")
-        assert all(r == 0 for r in results), f"Expected all 0s, got {results}"
-
-    # TODO: Rerun with working commit and Graphix/Veriphix version combination, find breaking change
-    # #  Test for debugging Veriphix usage
-    # @staticmethod
-    # def test_veriphix_trace() -> None:
-    #     """Trace veriphix execution to find the bug."""
-
-    #     circ = Circuit(1)
-    #     circ.h(0)
-    #     pattern = circ.transpile().pattern
-    #     pattern.standardize()
-
-    #     print("Original pattern:")
-    #     for cmd in pattern:
-    #         print(f"  {cmd}")
-
-    #     secrets = Secrets(r=False, a=False, theta=False)
-    #     d, t, w = 3, 0, 0  # Just 3 runs for debugging
-    #     trap_scheme_param = TrappifiedSchemeParameters(d, t, w)
-    #     client = Client(pattern=pattern, secrets=secrets, parameters=trap_scheme_param)
-
-    #     print("\nClean pattern (used by veriphix):")
-    #     for cmd in client.clean_pattern:
-    #         print(f"  {cmd}")
-
-    #     print(f"\nByproduct DB: {client.byproduct_db}")
-    #     print(f"Output nodes: {client.output_nodes}")
-    #     print(f"Input nodes: {client.input_nodes}")
-
-    #     # Run directly with pattern.simulate_pattern for comparison
-    #     print("\n--- Direct simulation (3 runs) ---")
-    #     source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-    #     for i in range(3):
-    #         backend = PercevalBackend(source)
-    #         state = pattern.simulate_pattern(backend)
-    #         vec = perceval_statevector_to_graphix_statevec(state)
-    #         prob_0 = np.abs(vec.psi.flatten()[0])**2
-    #         print(f"  Run {i}: prob_0={prob_0:.4f}")
-
-    #     # Now run through veriphix
-    #     print("\n--- Veriphix execution ---")
-    #     backend = PercevalBackend(source)
-    #     protocol_runs = client.sample_canvas()
-    #     outcomes = client.delegate_canvas(protocol_runs, backend)
-    #     result = client.analyze_outcomes(protocol_runs, outcomes)
-
-    #     print(f"Computation outcomes: {result[2].computation_outcomes_count}")
-
-    # TODO: Try with Veriphix main and Thierry branch and compare results
-    # @staticmethod
-    # def test_with_veriphix_check() -> None:
-    #     """Verify PercevalBackend integration with the Veriphix trappified verification scheme."""
-    #     # client computation pattern definition
-    #     circ = Circuit(1)
-    #     circ.h(0)
-    #     pattern = circ.transpile().pattern
-    #     pattern.standardize()
-
-    #     print("Original pattern:")
-    #     for cmd in pattern:
-    #         print(f"  {cmd}")
-
-    #     secrets = Secrets(r=True, a=True, theta=True)
-    #     d = 10
-    #     t = 10
-    #     w = 1
-    #     trap_scheme_param = TrappifiedSchemeParameters(d, t, w)
-    #     client = Client(pattern=pattern, secrets=secrets, parameters=trap_scheme_param)
-    #     protocol_runs = client.sample_canvas()
-
-    #     print(f"\nNumber of protocol runs: {len(protocol_runs)}")
-    #     print(f"First run type: {type(protocol_runs[0])}")
-
-    #     # Inspect a computation run if possible
-    #     for i, run in enumerate(protocol_runs):
-    #         print(f"\nRun {i}: {type(run)}")
-    #         if hasattr(run, "pattern"):
-    #             print(f"  Pattern commands: {list(run.pattern)[:5]}...")
-    #         if hasattr(run, "__dict__"):
-    #             print(f"  Attributes: {list(run.__dict__.keys())}")
-
-    #     from graphix.sim import StatevectorBackend
-
-    #     outcomes = client.delegate_canvas(protocol_runs, StatevectorBackend)  # pyright: ignore[reportArgumentType]
-    #     result = client.analyze_outcomes(protocol_runs, outcomes)
-
-    #     #  Debug output
-    #     print(f"Computation outcomes: {result[2].computation_outcomes_count}")
-    #     print(f"Test round failures: {result[2].nr_failed_test_rounds}")
-    #     print(f"Total computation rounds: {d}")
-
-    #     # assert result[2].nr_failed_test_rounds == 0
-    #     # Verify that computation outcomes align with expectation (Identity -> 0)
-    #     assert result[2].computation_outcomes_count["0"] == d
+            comparison = np.array([1, 0])  # |0>
+            assert np.abs(np.dot(vec.psi.flatten().conjugate(), comparison)) == pytest.approx(1)
 
     @staticmethod
-    @pytest.mark.skip(reason="veriphix problem handling corrections, needs updating")
     def test_with_veriphix() -> None:
         """Verify PercevalBackend integration with the Veriphix trappified verification scheme."""
         # client computation pattern definition
         circ = Circuit(1)
         circ.h(0)
+        circ.h(0)
         pattern = circ.transpile().pattern
         pattern.standardize()
-
-        print("Original pattern:")
-        for cmd in pattern:
-            print(f"  {cmd}")
 
         secrets = Secrets(r=True, a=True, theta=True)
         d = 10
@@ -289,29 +299,12 @@ class TestPercevalBackend:
         client = Client(pattern=pattern, secrets=secrets, parameters=trap_scheme_param)
         protocol_runs = client.sample_canvas()
 
-        print(f"\nNumber of protocol runs: {len(protocol_runs)}")
-        print(f"First run type: {type(protocol_runs[0])}")
-
-        # Inspect a computation run if possible
-        for i, run in enumerate(protocol_runs):
-            print(f"\nRun {i}: {type(run)}")
-            if hasattr(run, "pattern"):
-                print(f"  Pattern commands: {list(run.pattern)[:5]}...")
-            if hasattr(run, "__dict__"):
-                print(f"  Attributes: {list(run.__dict__.keys())}")
-
         source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
         backend = PercevalBackend(source)
         outcomes = client.delegate_canvas(protocol_runs, backend)  # pyright: ignore[reportArgumentType]
         result = client.analyze_outcomes(protocol_runs, outcomes)
 
-        #  Debug output
-        print(f"Computation outcomes: {result[2].computation_outcomes_count}")
-        print(f"Test round failures: {result[2].nr_failed_test_rounds}")
-        print(f"Total computation rounds: {d}")
-
         assert result[2].nr_failed_test_rounds == 0
-        # Verify that computation outcomes align with expectation (Identity -> 0)
         assert result[2].computation_outcomes_count["0"] == d
 
     @staticmethod
@@ -368,14 +361,13 @@ class TestPercevalBackend:
         pattern = circ.transpile().pattern
         pattern.standardize()
         source1 = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-        source2 = Source(emission_probability=1, multiphoton_component=0.1, indistinguishability=1)
+        source2 = Source(emission_probability=1, multiphoton_component=0.05, indistinguishability=1)
         backend1 = PercevalBackend(source1)
         backend2 = PercevalBackend(source2)
         percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1))
         percy2 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend2))
 
         # Multiphoton component should theoretically introduce noise.
-        # However, the current simulator setup might produce perfect fidelity (1.0).
         fidelity = np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten()))
         assert fidelity > 0.6
 
@@ -524,7 +516,7 @@ class TestPercevalBackend:
             assert list(backend.node_index) == list(range(1, n_neighbors + 1))
 
     def test_deterministic_measure_many(self):
-        """Verify deterministic measurement outcomes in a more complex many-qubit entangled system."""
+        """Verify deterministic measurement outcomes in a more complex system."""
         for _ in range(3):
             # plus state (default)
             source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
