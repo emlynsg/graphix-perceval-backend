@@ -11,7 +11,8 @@ Simulation backend interface between Graphix and Perceval.
 
 ## Future Improvements / TODOs
 
-- Refactor to use a dedicated state class inheriting from `pcvl.StateVector`.
+- Update Veriphix with Graphix main and remove monkeypatch.
+- Consider how to manage multiple photons in one mode in conversion functions.
 - Implement choice of detectors.
 - Add alternative state generation strategies.
 - Implement `add_nodes` and measurements for mixed states to track success probabilities.

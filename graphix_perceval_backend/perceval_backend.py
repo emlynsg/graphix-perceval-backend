@@ -243,7 +243,6 @@ class PercevalBackend(Backend):
             self._state = PercevalState(source, state)
         else:
             self._state = PercevalState(source)
-
         self.node_index = NodeIndex()
 
     def __call__(self) -> PercevalBackend:
@@ -547,7 +546,6 @@ def perceval_statevector_to_graphix_statevec(psvec: pcvl.StateVector) -> Stateve
             if basic_state[2 * i + 1] == 1:
                 index += 2 ** (n_qubit - 1 - i)
         data[index] = amplitude
-
     return Statevec(data=data, nqubit=n_qubit)
 
 
