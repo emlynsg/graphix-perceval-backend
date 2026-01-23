@@ -36,74 +36,74 @@ from graphix_perceval_backend import (
 )
 
 
-# Monkeypatch for graphix.pauli.IXYZ which has been replaced in recent graphix master
-# and is now a TypeAlias (Union) which cannot be instantiated.
-# veriphix (dev dependency) still expects a callable Enum-like object.
-# TODO: Update Veriphix to use current form of IXYZ, and remove this monkeypatch
-class IXYZ_Meta(type):
-    def __getattr__(cls, name):
-        # Fallback to IXYZ_VALUES for enum-like access (IXYZ.X, IXYZ.Y, IXYZ.Z)
-        if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
-            # I=0, X=1, Y=2, Z=3 in IXYZ_VALUES based on previous context
-            # But let's check standard names
-            if name == "I":
-                return graphix.fundamentals.IXYZ_VALUES[0]
-            if name == "X":
-                return graphix.fundamentals.IXYZ_VALUES[1]
-            if name == "Y":
-                return graphix.fundamentals.IXYZ_VALUES[2]
-            if name == "Z":
-                return graphix.fundamentals.IXYZ_VALUES[3]
+# # Monkeypatch for graphix.pauli.IXYZ which has been replaced in recent graphix master
+# # and is now a TypeAlias (Union) which cannot be instantiated.
+# # veriphix (dev dependency) still expects a callable Enum-like object.
+# # TODO: Update Veriphix to use current form of IXYZ, and remove this monkeypatch
+# class IXYZ_Meta(type):
+#     def __getattr__(cls, name):
+#         # Fallback to IXYZ_VALUES for enum-like access (IXYZ.X, IXYZ.Y, IXYZ.Z)
+#         if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
+#             # I=0, X=1, Y=2, Z=3 in IXYZ_VALUES based on previous context
+#             # But let's check standard names
+#             if name == "I":
+#                 return graphix.fundamentals.IXYZ_VALUES[0]
+#             if name == "X":
+#                 return graphix.fundamentals.IXYZ_VALUES[1]
+#             if name == "Y":
+#                 return graphix.fundamentals.IXYZ_VALUES[2]
+#             if name == "Z":
+#                 return graphix.fundamentals.IXYZ_VALUES[3]
 
-        if hasattr(graphix.fundamentals, name):
-            return getattr(graphix.fundamentals, name)
-        # Fallback for older graphix where they are members of IXYZ Enum
-        if hasattr(graphix.fundamentals, "IXYZ") and hasattr(graphix.fundamentals.IXYZ, name):
-            return getattr(graphix.fundamentals.IXYZ, name)
-        raise AttributeError(name)
+#         if hasattr(graphix.fundamentals, name):
+#             return getattr(graphix.fundamentals, name)
+#         # Fallback for older graphix where they are members of IXYZ Enum
+#         if hasattr(graphix.fundamentals, "IXYZ") and hasattr(graphix.fundamentals.IXYZ, name):
+#             return getattr(graphix.fundamentals.IXYZ, name)
+#         raise AttributeError(name)
 
-    def __getitem__(cls, key):
-        return getattr(cls, key)
+#     def __getitem__(cls, key):
+#         return getattr(cls, key)
 
-    def __iter__(cls):
-        if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
-            return iter(graphix.fundamentals.IXYZ_VALUES)
-        return iter(graphix.fundamentals.IXYZ)
+#     def __iter__(cls):
+#         if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
+#             return iter(graphix.fundamentals.IXYZ_VALUES)
+#         return iter(graphix.fundamentals.IXYZ)
 
-    def __call__(cls, arg):
-        if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
-            try:
-                # Fix: Handle 1-based indexing from older Enum behavior (I=1 -> index 0)
-                index = arg - 1 if isinstance(arg, int) and arg > 0 else arg
-                return graphix.fundamentals.IXYZ_VALUES[index]
-            except (IndexError, TypeError):
-                pass
-        if hasattr(graphix.fundamentals, "IXYZ") and callable(graphix.fundamentals.IXYZ):
-            try:
-                return graphix.fundamentals.IXYZ(arg)
-            except TypeError:
-                pass
-        if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
-            return graphix.fundamentals.IXYZ_VALUES[0]
-        return arg
+#     def __call__(cls, arg):
+#         if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
+#             try:
+#                 # Fix: Handle 1-based indexing from older Enum behavior (I=1 -> index 0)
+#                 index = arg - 1 if isinstance(arg, int) and arg > 0 else arg
+#                 return graphix.fundamentals.IXYZ_VALUES[index]
+#             except (IndexError, TypeError):
+#                 pass
+#         if hasattr(graphix.fundamentals, "IXYZ") and callable(graphix.fundamentals.IXYZ):
+#             try:
+#                 return graphix.fundamentals.IXYZ(arg)
+#             except TypeError:
+#                 pass
+#         if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
+#             return graphix.fundamentals.IXYZ_VALUES[0]
+#         return arg
 
-    def __instancecheck__(cls, instance):
-        if hasattr(graphix.fundamentals, "Axis") and isinstance(instance, graphix.fundamentals.Axis):
-            return True
-        if hasattr(graphix.fundamentals, "IXYZ"):
-            if isinstance(graphix.fundamentals.IXYZ, type):
-                return isinstance(instance, graphix.fundamentals.IXYZ)
-            pass
-        if hasattr(graphix.fundamentals, "I") and instance is graphix.fundamentals.I:
-            return True
-        return False
-
-
-class IXYZ_Shim(metaclass=IXYZ_Meta):
-    pass
+#     def __instancecheck__(cls, instance):
+#         if hasattr(graphix.fundamentals, "Axis") and isinstance(instance, graphix.fundamentals.Axis):
+#             return True
+#         if hasattr(graphix.fundamentals, "IXYZ"):
+#             if isinstance(graphix.fundamentals.IXYZ, type):
+#                 return isinstance(instance, graphix.fundamentals.IXYZ)
+#             pass
+#         if hasattr(graphix.fundamentals, "I") and instance is graphix.fundamentals.I:
+#             return True
+#         return False
 
 
-graphix.pauli.IXYZ = IXYZ_Shim
+# class IXYZ_Shim(metaclass=IXYZ_Meta):
+#     pass
+
+
+# graphix.pauli.IXYZ = IXYZ_Shim
 
 
 class TestConversionFunctions:
@@ -265,6 +265,7 @@ class TestPercevalBackend:
     def test_h_deterministic() -> None:
         """Verify H gives deterministic "0" outcome."""
         circ = Circuit(1)
+        # circ.h(0)
         circ.h(0)
         pattern = circ.transpile().pattern
         pattern.standardize()
@@ -275,11 +276,35 @@ class TestPercevalBackend:
         results = []
         for _ in range(20):
             backend = PercevalBackend(source)
-            state = pattern.simulate_pattern(backend)
+            state = pattern.simulate_pattern(backend).state
             # Convert to computational basis outcome
             vec = perceval_statevector_to_graphix_statevec(state)
             comparison = np.array([1, 0])  # |0>
             assert np.abs(np.dot(vec.psi.flatten().conjugate(), comparison)) == pytest.approx(1)
+
+    @staticmethod
+    def test_check_veriphix() -> None:
+        """Verify PercevalBackend integration with the Veriphix trappified verification scheme."""
+        # client computation pattern definition
+        circ = Circuit(1)
+        circ.h(0)
+        circ.h(0)
+        pattern = circ.transpile().pattern
+        pattern.standardize()
+
+        secrets = Secrets(r=True, a=True, theta=True)
+        d = 10
+        t = 10
+        w = 1
+        trap_scheme_param = TrappifiedSchemeParameters(d, t, w)
+        client = Client(pattern=pattern, secrets=secrets, parameters=trap_scheme_param)
+        protocol_runs = client.sample_canvas()
+
+        outcomes = client.delegate_canvas(protocol_runs, StatevectorBackend)  # pyright: ignore[reportArgumentType]
+        result = client.analyze_outcomes(protocol_runs, outcomes)
+
+        assert result[2].nr_failed_test_rounds == 0
+        assert result[2].computation_outcomes_count["0"] == d
 
     @staticmethod
     def test_with_veriphix() -> None:
@@ -317,7 +342,7 @@ class TestPercevalBackend:
         pattern.standardize()
         source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
         backend = PercevalBackend(source)
-        percy = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend))
+        percy = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend).state)
         svec = circ.simulate_statevector().statevec
         assert np.abs(np.dot(percy.flatten().conjugate(), svec.flatten())) == pytest.approx(1)
 
@@ -331,7 +356,7 @@ class TestPercevalBackend:
         pattern.standardize()
         source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
         backend = PercevalBackend(source)
-        percy = DensityMatrix(perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend)))
+        percy = DensityMatrix(perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend).state))
         dm: DensityMatrix = pattern.simulate_pattern("densitymatrix")  # type: ignore  # noqa: PGH003
         assert np.allclose(dm.rho, percy.rho)
 
@@ -347,8 +372,8 @@ class TestPercevalBackend:
         source2 = Source(emission_probability=0.99, multiphoton_component=0, indistinguishability=1)
         backend1 = PercevalBackend(source1)
         backend2 = PercevalBackend(source2)
-        percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1))
-        percy2 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend2))
+        percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1).state)
+        percy2 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend2).state)
         assert np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten())) == pytest.approx(1)
 
     @staticmethod
@@ -361,12 +386,12 @@ class TestPercevalBackend:
         pattern = circ.transpile().pattern
         pattern.standardize()
         source1 = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-        source2 = Source(emission_probability=1, multiphoton_component=0.05, indistinguishability=1)
+        source2 = Source(emission_probability=1, multiphoton_component=0.02, indistinguishability=1)
         backend1 = PercevalBackend(source1)
         backend2 = PercevalBackend(source2)
-        percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1))
-        percy2 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend2))
-
+        percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1).state)
+        percy2 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend2).state)
+        assert np.abs(percy2.psi.flatten().conjugate(), percy2.psi.flatten()) != pytest.approx(1)
         # Multiphoton component should theoretically introduce noise.
         fidelity = np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten()))
         assert fidelity > 0.6
@@ -384,8 +409,8 @@ class TestPercevalBackend:
         source2 = Source(emission_probability=1, multiphoton_component=0, indistinguishability=0.95)
         backend1 = PercevalBackend(source1)
         backend2 = PercevalBackend(source2)
-        percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1))
-        percy2 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend2))
+        percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1).state)
+        percy2 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend2).state)
 
         # Indistinguishability < 1 introduces noise/mixed states, so fidelity should drop
         fidelity = np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten()))

@@ -44,9 +44,9 @@ class PercevalState:
         self.state = state if state is not None else pcvl.BasicState()
         # # In future use the below instead of the pcvl package state.
         # super().__init__(DensityMatrix(nqubit = 0), pr_calc = True, rng = None)  # noqa: ERA001
-        self._sim = pcvl.simulators.Simulator(pcvl.BackendFactory.get_backend("SLOS"))
-        self._sim.set_min_detected_photons_filter(0)
-        self._sim.keep_heralds(False)  # noqa: FBT003
+        self.sim = pcvl.simulators.Simulator(pcvl.BackendFactory.get_backend("SLOS"))
+        self.sim.set_min_detected_photons_filter(0)
+        self.sim.keep_heralds(False)  # noqa: FBT003
 
     @property
     def nqubit(self) -> int:
@@ -69,29 +69,26 @@ class PercevalState:
         """
         return iter(self.state)
 
-    def evolve(self, circuit: pcvl.Circuit, heralds: dict | None = None, sampled_herald_state=None) -> None:
+    def evolve(self, state=None) -> pcvl.StateVector:
         """Evolve the state using a Perceval circuit.
 
         Parameters
         ----------
-        circuit : pcvl.Circuit
-            The circuit to apply.
-        heralds : dict | None
-            Optional heralds configuration.
-        sampled_herald_state
-            Optional herald state.
+        state : pcvl.StateVector | None
+            State to evolve (default: internal state).
+
+        Returns
+        -------
+        pcvl.StateVector
+            Evolved state.
 
         """
-        self._sim.set_circuit(circuit)
-        if heralds:
-            self._sim.set_heralds(heralds)
-            self.state = self._sim.evolve(self.state * sampled_herald_state)
-            self._sim.clear_heralds()
-        else:
-            self.state = self._sim.evolve(self.state)
+        if state is not None:
+            return self.sim.evolve(state)
+        return self.sim.evolve(self.state)
 
     def measure(self, modes: list[int], postselect: pcvl.PostSelect | None = None) -> pcvl.BasicState:
-        """Measure the specified modes and update the state to the conditional outcome.
+        """Measure the specified modes and return sampled state.
 
         Parameters
         ----------
@@ -139,8 +136,8 @@ class PercevalState:
             matrix = pcvl.Matrix(np.asarray([[alpha, gamma], [beta, delta]]))
             init_circ = pcvl.Circuit(2)
             init_circ.add(0, comp.Unitary(U=matrix))
-            self._sim.set_circuit(init_circ)
-            init_qubit = self._sim.evolve(init_qubit)
+            self.sim.set_circuit(init_circ)
+            init_qubit = self.evolve(init_qubit)
         self.state *= init_qubit
 
     def entangle(self, index_0: int, index_1: int) -> None:
@@ -161,13 +158,18 @@ class PercevalState:
         ent_proc = pcvl.Processor("SLOS", 2 * self.nqubit)
         ent_proc.add(cz_input_modes, catalog["heralded cz"].build_processor())
         ent_circ = ent_proc.linear_circuit()
+        self.sim.set_circuit(ent_circ)
 
+        # the first 2n modes store the state, the last modes are heralds (1 photon in 2 modes for each CZ gate)
         heralds = dict.fromkeys(list(range(2 * self.nqubit, ent_circ.m)), 1)
-        self._sim.set_heralds(heralds)
-        herald_state_dist = self.source.generate_distribution(pcvl.BasicState([1, 1]))
-        sampled_herald_state = herald_state_dist.sample(1)[0]
+        self.sim.set_heralds(heralds)
+        herald_state = self.source.generate_distribution(pcvl.BasicState([1, 1]))
 
-        self.evolve(ent_circ, heralds=heralds, sampled_herald_state=sampled_herald_state)
+        sampled_herald_state = herald_state.sample(1)[0]
+
+        self.state = self.evolve(self.state * sampled_herald_state)
+
+        self.sim.clear_heralds()
 
     def measure_qubit(self, index: int, circuit: pcvl.Circuit) -> int:
         """Measure a qubit after applying a measurement basis circuit.
@@ -185,7 +187,8 @@ class PercevalState:
             Measurement outcome (0 or 1).
 
         """
-        self.evolve(circuit)
+        self.sim.set_circuit(circuit)
+        self.state = self.evolve(self.state)
         ps = pcvl.PostSelect("([0] > 0 & [1] == 0) | ([0] == 0 & [1] > 0)")
         sampled_outcome = self.measure([2 * index, 2 * index + 1], postselect=ps)
 
@@ -395,7 +398,6 @@ class PercevalBackend(Backend):
                 meas_circ.add(2 * index + 1, comp.PS(np.pi / 2))
                 meas_circ.add(2 * index, comp.BS.H())
 
-        # applies operation on measured qubit before performing a Z basis measurement
         result = self.state.measure_qubit(index, meas_circ)
         self.node_index.remove(node)
         return result
@@ -422,8 +424,8 @@ class PercevalBackend(Backend):
                 correct_circ.add(2 * index, comp.PERM([1, 0]))
             elif cmd.kind == CommandKind.Z:
                 correct_circ.add(2 * index + 1, comp.PS(np.pi))
-
-            self.state.evolve(correct_circ)
+            self.state.sim.set_circuit(correct_circ)
+            self.state.state = self.state.evolve(self.state.state)
 
     def apply_clifford(self, node: int, clifford) -> None:
         """Apply single-qubit Clifford gate.
@@ -449,8 +451,8 @@ class PercevalBackend(Backend):
 
         # use unitary defining the clifford to initialise the perceval circuit
         clifford_circ = pcvl.Circuit(2 * self.nqubit).add(2 * index, comp.Unitary(U=pcvl.Matrix(clifford.matrix)))
-
-        self.state.evolve(clifford_circ)
+        self.state.sim.set_circuit(clifford_circ)
+        self.state.state = self.state.evolve(self.state.state)
 
     def sort_qubits(self, output_nodes) -> None:
         """Sort the qubit order in internal statevector.
@@ -483,10 +485,18 @@ class PercevalBackend(Backend):
                     high = max(i, move_from)
                     perm_circ.add(
                         2 * low,
-                        comp.PERM([2 * (high - low), 2 * (high - low) + 1, *list(range(2, 2 * (high - low))), 0, 1]),
+                        comp.PERM(
+                            [
+                                2 * (high - low),
+                                2 * (high - low) + 1,
+                                *list(range(2, 2 * (high - low))),
+                                0,
+                                1,
+                            ]
+                        ),
                     )
-
-            self.state.evolve(perm_circ)
+            self.state.sim.set_circuit(perm_circ)
+            self.state.state = self.state.evolve(self.state.state)
 
     def finalize(self, output_nodes) -> None:
         """Finalize the simulation by sorting the output qubits.
@@ -540,7 +550,9 @@ def perceval_statevector_to_graphix_statevec(psvec: pcvl.StateVector) -> Stateve
     return Statevec(data=data, nqubit=n_qubit)
 
 
-def graphix_planar_state_to_perceval_statevec(planar_state: PlanarState) -> pcvl.StateVector:
+def graphix_planar_state_to_perceval_statevec(
+    planar_state: PlanarState,
+) -> pcvl.StateVector:
     """Convert a Graphix PlanarState to a Perceval StateVector.
 
     Parameters

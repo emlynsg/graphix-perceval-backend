@@ -3,5 +3,5 @@ pre-commit==4.2.0
 pytest==8.3.5
 ruff==0.11.10
 
-veriphix @ git+https://github.com/qat-inria/veriphix.git@refs/pull/10/head
+veriphix @ git+https://github.com/qat-inria/veriphix.git@0328dda3d878616a8cf6032c49f38b0753418082
 stim>=1.13,<2
