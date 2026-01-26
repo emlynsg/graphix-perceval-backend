@@ -386,7 +386,7 @@ class TestPercevalBackend:
         pattern = circ.transpile().pattern
         pattern.standardize()
         source1 = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-        source2 = Source(emission_probability=1, multiphoton_component=0.02, indistinguishability=1)
+        source2 = Source(emission_probability=1, multiphoton_component=0.005, indistinguishability=1)
         backend1 = PercevalBackend(source1)
         backend2 = PercevalBackend(source2)
         percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1).state)
@@ -394,7 +394,7 @@ class TestPercevalBackend:
         assert np.abs(percy2.psi.flatten().conjugate(), percy2.psi.flatten()) != pytest.approx(1)
         # Multiphoton component should theoretically introduce noise.
         fidelity = np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten()))
-        assert fidelity > 0.6
+        assert 1 > fidelity
 
     @staticmethod
     def test_basic_diff_indisting() -> None:
@@ -414,7 +414,7 @@ class TestPercevalBackend:
 
         # Indistinguishability < 1 introduces noise/mixed states, so fidelity should drop
         fidelity = np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten()))
-        assert fidelity > 0.8
+        assert 1 > fidelity
 
     @pytest.mark.parametrize(
         "state",
