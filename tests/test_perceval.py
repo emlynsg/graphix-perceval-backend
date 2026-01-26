@@ -6,14 +6,6 @@ Copyright (C) 2026, QAT team (ENS-PSL, Inria, CNRS).
 # ruff: noqa
 # ruff: noqa: PGH004
 
-import graphix.pauli
-import graphix.fundamentals
-
-# from graphix.fundamentals import ANGLE_PI
-from math import pi
-
-ANGLE_PI = pi
-
 import numpy as np
 import pytest
 from graphix.sim.statevec import StatevectorBackend, Statevec
@@ -22,7 +14,7 @@ from graphix.states import BasicStates, PlanarState
 from graphix.transpiler import Circuit
 from numpy.random import Generator
 from perceval import Source
-from graphix.fundamentals import Plane
+from graphix.fundamentals import Plane, ANGLE_PI
 from graphix.pauli import Pauli
 from graphix.measurements import Measurement
 from graphix.clifford import Clifford
@@ -34,76 +26,6 @@ from graphix_perceval_backend import (
     graphix_state_to_perceval_statevec,
     perceval_statevector_to_graphix_statevec,
 )
-
-
-# # Monkeypatch for graphix.pauli.IXYZ which has been replaced in recent graphix master
-# # and is now a TypeAlias (Union) which cannot be instantiated.
-# # veriphix (dev dependency) still expects a callable Enum-like object.
-# # TODO: Update Veriphix to use current form of IXYZ, and remove this monkeypatch
-# class IXYZ_Meta(type):
-#     def __getattr__(cls, name):
-#         # Fallback to IXYZ_VALUES for enum-like access (IXYZ.X, IXYZ.Y, IXYZ.Z)
-#         if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
-#             # I=0, X=1, Y=2, Z=3 in IXYZ_VALUES based on previous context
-#             # But let's check standard names
-#             if name == "I":
-#                 return graphix.fundamentals.IXYZ_VALUES[0]
-#             if name == "X":
-#                 return graphix.fundamentals.IXYZ_VALUES[1]
-#             if name == "Y":
-#                 return graphix.fundamentals.IXYZ_VALUES[2]
-#             if name == "Z":
-#                 return graphix.fundamentals.IXYZ_VALUES[3]
-
-#         if hasattr(graphix.fundamentals, name):
-#             return getattr(graphix.fundamentals, name)
-#         # Fallback for older graphix where they are members of IXYZ Enum
-#         if hasattr(graphix.fundamentals, "IXYZ") and hasattr(graphix.fundamentals.IXYZ, name):
-#             return getattr(graphix.fundamentals.IXYZ, name)
-#         raise AttributeError(name)
-
-#     def __getitem__(cls, key):
-#         return getattr(cls, key)
-
-#     def __iter__(cls):
-#         if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
-#             return iter(graphix.fundamentals.IXYZ_VALUES)
-#         return iter(graphix.fundamentals.IXYZ)
-
-#     def __call__(cls, arg):
-#         if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
-#             try:
-#                 # Fix: Handle 1-based indexing from older Enum behavior (I=1 -> index 0)
-#                 index = arg - 1 if isinstance(arg, int) and arg > 0 else arg
-#                 return graphix.fundamentals.IXYZ_VALUES[index]
-#             except (IndexError, TypeError):
-#                 pass
-#         if hasattr(graphix.fundamentals, "IXYZ") and callable(graphix.fundamentals.IXYZ):
-#             try:
-#                 return graphix.fundamentals.IXYZ(arg)
-#             except TypeError:
-#                 pass
-#         if hasattr(graphix.fundamentals, "IXYZ_VALUES"):
-#             return graphix.fundamentals.IXYZ_VALUES[0]
-#         return arg
-
-#     def __instancecheck__(cls, instance):
-#         if hasattr(graphix.fundamentals, "Axis") and isinstance(instance, graphix.fundamentals.Axis):
-#             return True
-#         if hasattr(graphix.fundamentals, "IXYZ"):
-#             if isinstance(graphix.fundamentals.IXYZ, type):
-#                 return isinstance(instance, graphix.fundamentals.IXYZ)
-#             pass
-#         if hasattr(graphix.fundamentals, "I") and instance is graphix.fundamentals.I:
-#             return True
-#         return False
-
-
-# class IXYZ_Shim(metaclass=IXYZ_Meta):
-#     pass
-
-
-# graphix.pauli.IXYZ = IXYZ_Shim
 
 
 class TestConversionFunctions:
@@ -148,114 +70,6 @@ class TestConversionFunctions:
         # Convert back
         back_to_graphix = perceval_statevector_to_graphix_statevec(perceval_state)
         assert np.allclose(bell, back_to_graphix.psi.flatten())
-
-
-# class TestVeriphixProblems:
-#     @staticmethod
-#     def test_without_theta_and_secret():
-#         circ = Circuit(1)
-#         circ.h(0)
-#         # circ.h(0)
-#         pattern = circ.transpile().pattern
-#         pattern.standardize()
-
-#         print("Original pattern:")
-#         for cmd in pattern:
-#             print(f"  {cmd}")
-
-#         secrets = Secrets(r=False, a=False, theta=False)
-#         d, t, w = 3, 0, 0
-#         trap_scheme_param = TrappifiedSchemeParameters(d, t, w)
-#         client = Client(pattern=pattern, secrets=secrets, parameters=trap_scheme_param)
-
-#         # Run directly with pattern.simulate_pattern for comparison
-#         print("\n--- Direct simulation (3 runs) ---")
-#         source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-#         for i in range(3):
-#             backend = PercevalBackend(source)
-#             state = pattern.simulate_pattern(backend)
-#             vec = perceval_statevector_to_graphix_statevec(state)
-#             comparison = np.array([1, 0])  # |0>
-#             assert np.abs(np.dot(vec.psi.flatten().conjugate(), comparison)) == pytest.approx(1)
-#         # TODO: Something wrong with the shape of the converted statevec, coming from something wrong with the Perceval statevec itself
-
-#         # Now run through veriphix
-#         print("\n--- Veriphix execution ---")
-#         backend = PercevalBackend(source)
-#         protocol_runs = client.sample_canvas()
-
-#         print(f"\nNumber of protocol runs: {len(protocol_runs)}")
-#         print(f"First run type: {type(protocol_runs[0])}")
-
-#         print("\nInitial pattern in Veriphix:")
-#         for cmd in client.initial_pattern:
-#             print(f"  {cmd}")
-#         print("\nClean pattern in Veriphix:")
-#         for cmd in client.clean_pattern:
-#             print(f"  {cmd}")
-
-#         print(f"\nByproduct DB: {client.byproduct_db}")
-#         print(f"Output nodes: {client.output_nodes}")
-#         print(f"Input nodes: {client.input_nodes}")
-
-#         outcomes = client.delegate_canvas(protocol_runs, backend)
-#         result = client.analyze_outcomes(protocol_runs, outcomes)
-
-#         #  Debug output
-#         print(f"Computation outcomes: {result[2].computation_outcomes_count}")  # Should be d
-#         print(f"Test round failures: {result[2].nr_failed_test_rounds}")  # Should be 0
-#         print(f"Total computation rounds: {d}")
-
-#         assert result[2].nr_failed_test_rounds == 0
-#         assert result[2].computation_outcomes_count["0"] == d
-
-#     @staticmethod
-#     def test_Veriphix_statevec():
-#         """Same as Veriphix test in the main test file, but using Statevector."""
-#         circ = Circuit(1)
-#         circ.h(0)
-#         circ.h(0)
-#         pattern = circ.transpile().pattern
-#         pattern.standardize()
-#         backend = StatevectorBackend()
-#         state = pattern.simulate_pattern(backend)
-#         vec = perceval_statevector_to_graphix_statevec(state)
-#         print("Original pattern:")
-#         for cmd in pattern:
-#             print(f"  {cmd}")
-
-#         secrets = Secrets(r=True, a=True, theta=True)
-#         d = 10
-#         t = 10
-#         w = 1
-#         trap_scheme_param = TrappifiedSchemeParameters(d, t, w)
-#         client = Client(pattern=pattern, secrets=secrets, parameters=trap_scheme_param)
-#         protocol_runs = client.sample_canvas()
-
-#         print(f"\nNumber of protocol runs: {len(protocol_runs)}")
-#         print(f"First run type: {type(protocol_runs[0])}")
-
-#         print("\nInitial pattern in Veriphix:")
-#         for cmd in client.initial_pattern:
-#             print(f"  {cmd}")
-#         print("\nClean pattern in Veriphix:")
-#         for cmd in client.clean_pattern:
-#             print(f"  {cmd}")
-
-#         print(f"\nByproduct DB: {client.byproduct_db}")
-#         print(f"Output nodes: {client.output_nodes}")
-#         print(f"Input nodes: {client.input_nodes}")
-
-#         outcomes = client.delegate_canvas(protocol_runs, StatevectorBackend)  # pyright: ignore[reportArgumentType]
-#         result = client.analyze_outcomes(protocol_runs, outcomes)
-
-#         #  Debug output
-#         print(f"Computation outcomes: {result[2].computation_outcomes_count}")  # Should be d
-#         print(f"Test round failures: {result[2].nr_failed_test_rounds}")  # Should be 0
-#         print(f"Total computation rounds: {d}")
-
-#         assert result[2].nr_failed_test_rounds == 0
-#         assert result[2].computation_outcomes_count["0"] == d
 
 
 class TestPercevalBackend:
@@ -333,7 +147,7 @@ class TestPercevalBackend:
         assert result[2].computation_outcomes_count["0"] == d
 
     @staticmethod
-    def test_basic_vs_svec() -> None:
+    def test_basic_vs_svec_direct() -> None:
         """Verify that PercevalBackend results match Graphix StatevectorBackend for a simple circuit."""
         circ = Circuit(1)
         circ.h(0)
@@ -344,6 +158,20 @@ class TestPercevalBackend:
         backend = PercevalBackend(source)
         percy = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend).state)
         svec = circ.simulate_statevector().statevec
+        assert np.abs(np.dot(percy.flatten().conjugate(), svec.flatten())) == pytest.approx(1)
+
+    @staticmethod
+    def test_basic_vs_svec() -> None:
+        """Verify that PercevalBackend results match Graphix StatevectorBackend for a simple circuit."""
+        circ = Circuit(1)
+        circ.h(0)
+        circ.h(0)
+        pattern = circ.transpile().pattern
+        pattern.standardize()
+        source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
+        backend = PercevalBackend(source)
+        percy = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend).state)
+        svec = pattern.simulate_pattern("statevector")  # type: ignore  # noqa: PGH003
         assert np.abs(np.dot(percy.flatten().conjugate(), svec.flatten())) == pytest.approx(1)
 
     @staticmethod
@@ -369,7 +197,7 @@ class TestPercevalBackend:
         pattern = circ.transpile().pattern
         pattern.standardize()
         source1 = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-        source2 = Source(emission_probability=0.99, multiphoton_component=0, indistinguishability=1)
+        source2 = Source(emission_probability=0.999, multiphoton_component=0, indistinguishability=1)
         backend1 = PercevalBackend(source1)
         backend2 = PercevalBackend(source2)
         percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1).state)
@@ -394,7 +222,7 @@ class TestPercevalBackend:
         assert np.abs(percy2.psi.flatten().conjugate(), percy2.psi.flatten()) != pytest.approx(1)
         # Multiphoton component should theoretically introduce noise.
         fidelity = np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten()))
-        assert 1 > fidelity
+        assert 1.0 > fidelity
 
     @staticmethod
     def test_basic_diff_indisting() -> None:
@@ -414,7 +242,7 @@ class TestPercevalBackend:
 
         # Indistinguishability < 1 introduces noise/mixed states, so fidelity should drop
         fidelity = np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten()))
-        assert 1 > fidelity
+        assert 1.0 > fidelity
 
     @pytest.mark.parametrize(
         "state",
