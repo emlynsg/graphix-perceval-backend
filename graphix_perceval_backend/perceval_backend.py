@@ -14,7 +14,7 @@ import numpy.typing as npt
 import perceval as pcvl
 import perceval.components as comp
 from graphix.command import CommandKind
-from graphix.fundamentals import Plane
+from graphix.fundamentals import ANGLE_PI, Plane, angle_to_rad
 from graphix.sim.base_backend import Backend, NodeIndex
 from graphix.sim.statevec import Statevec
 from graphix.states import BasicStates, PlanarState
@@ -375,14 +375,14 @@ class PercevalBackend(Backend):
             # YZ and XZ not properly tested, only used XY plane measurements
             case Plane.XY:
                 # rotation around Z axis by -angle
-                meas_circ.add(2 * index + 1, comp.PS(-measurement.angle))
+                meas_circ.add(2 * index + 1, comp.PS(-angle_to_rad(measurement.angle)))
                 # transformation from X basis to Z basis
                 meas_circ.add(2 * index, comp.BS.H())
 
             case Plane.YZ:
                 # rotation around X axis by -angle
                 meas_circ.add(2 * index, comp.BS.H())
-                meas_circ.add(2 * index + 1, comp.PS(-measurement.angle))
+                meas_circ.add(2 * index + 1, comp.PS(-angle_to_rad(measurement.angle)))
                 meas_circ.add(2 * index, comp.BS.H())
                 # transformation from Y basis to Z basis
                 meas_circ.add(2 * index + 1, comp.PS(-np.pi / 2))
@@ -392,7 +392,7 @@ class PercevalBackend(Backend):
                 # rotation around Y axis by -angle
                 meas_circ.add(2 * index + 1, comp.PS(-np.pi / 2))
                 meas_circ.add(2 * index, comp.BS.H())
-                meas_circ.add(2 * index + 1, comp.PS(-measurement.angle))
+                meas_circ.add(2 * index + 1, comp.PS(-angle_to_rad(measurement.angle)))
                 meas_circ.add(2 * index, comp.BS.H())
                 # transformation from X basis to Z basis
                 meas_circ.add(2 * index + 1, comp.PS(np.pi / 2))
@@ -423,7 +423,7 @@ class PercevalBackend(Backend):
             if cmd.kind == CommandKind.X:
                 correct_circ.add(2 * index, comp.PERM([1, 0]))
             elif cmd.kind == CommandKind.Z:
-                correct_circ.add(2 * index + 1, comp.PS(np.pi))
+                correct_circ.add(2 * index + 1, comp.PS(ANGLE_PI))
             self.state.sim.set_circuit(correct_circ)
             self.state.state = self.state.evolve(self.state.state)
 

@@ -9,11 +9,6 @@ Simulation backend interface between Graphix and Perceval.
 - **Entanglement**: CZ gates are applied via the `Processor` class to ensure correct mode permutations, as the `Circuit` class requires contiguous modes.
 - **Post-selection**: Post-selection in the `measure` function may fail because we don't simulate the full distribution. A future improvement could implement retries or full distribution simulation to recover success probabilities.
 
-## Fixing issue with Veriphix + Graphix dependencies
-
-- Currently using Veriphix 
-- The [breaking commit](https://github.com/TeamGraphix/graphix/commit/86ffee4340d356135207a22533cab85dd1616270) is the change to limit circuit measurements to Pauli axes
-
 ## Other issues / outstanding questions
 
 - How does the Perceval simulator `evolve` function work? We need to generalise to make the `PercevalState` and `PercevalBackend` `evolve` work properly.

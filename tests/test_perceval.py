@@ -325,7 +325,7 @@ class TestPercevalBackend:
         protocol_runs = client.sample_canvas()
 
         source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-        backend = PercevalBackend(source)
+        backend = lambda: PercevalBackend(source)
         outcomes = client.delegate_canvas(protocol_runs, backend)  # pyright: ignore[reportArgumentType]
         result = client.analyze_outcomes(protocol_runs, outcomes)
 
