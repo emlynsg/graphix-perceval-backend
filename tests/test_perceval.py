@@ -27,6 +27,7 @@ from graphix_perceval_backend import (
     PercevalBackend,
     graphix_state_to_perceval_statevec,
     perceval_statevector_to_graphix_statevec,
+    PercevalInterfaceError,
 )
 
 from perceval import random_seed
@@ -309,7 +310,10 @@ class TestPercevalBackendInitializationAndOperations:
         )
         backend = PercevalBackend(source)
         state = pattern.simulate_pattern(backend, rng=fx_rng).state
-        with pytest.raises(ValueError, match="Invalid Fock state with 2 photons in one mode"):
+        with pytest.raises(
+            PercevalInterfaceError,
+            match="Invalid Fock state with 2 photons in one mode",
+        ):
             perceval_statevector_to_graphix_statevec(state)
 
     def test_pass_low_multiphoton(self, fx_rng) -> None:
