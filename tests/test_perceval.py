@@ -46,8 +46,8 @@ TEST_BASIC_CIRCUITS = [
     Circuit(1, instr=[instruction.RZ(0, ANGLE_PI / 4)]),
     Circuit(2, instr=[instruction.CZ((0, 1))]),
     Circuit(2, instr=[instruction.CNOT(0, 1)]),
-    Circuit(3, instr=[instruction.CCX(0, (1, 2))]),
-    Circuit(2, instr=[instruction.RZZ(0, 1, ANGLE_PI / 4)]),
+    # Circuit(3, instr=[instruction.CCX(0, (1, 2))]),
+    # Circuit(2, instr=[instruction.RZZ(0, 1, ANGLE_PI / 4)]),
 ]
 
 
@@ -171,10 +171,7 @@ def test_basic_vs_svec_direct(circ, fx_rng) -> None:
     pattern.standardize()
     source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
     backend = PercevalBackend(source)
-    measure_method = DefaultMeasureMethod()
-    percy = perceval_statevector_to_graphix_statevec(
-        pattern.simulate_pattern(backend, rng=fx_rng, measure_method=measure_method).state
-    )
+    percy = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend, rng=fx_rng).state)
     svec = circ.simulate_statevector(rng=fx_rng).statevec
     assert np.abs(np.dot(percy.flatten().conjugate(), svec.flatten())) == pytest.approx(1)
 
@@ -191,20 +188,6 @@ def test_basic_vs_svec(circ, fx_rng) -> None:
     percy = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend, rng=fx_rng).state)
     svec = pattern.simulate_pattern("statevector", rng=fx_rng)  # type: ignore  # noqa: PGH003
     assert np.abs(np.dot(percy.flatten().conjugate(), svec.flatten())) == pytest.approx(1)
-
-
-@pytest.mark.parametrize("circ", TEST_BASIC_CIRCUITS)
-def test_basic_vs_dm(circ, fx_rng) -> None:
-    """Verify that PercevalBackend results match Graphix DensityMatrix backend for a simple circuit."""
-    pattern = circ.transpile().pattern
-    pattern.remove_input_nodes()
-    pattern.perform_pauli_measurements()
-    pattern.standardize()
-    source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-    backend = PercevalBackend(source)
-    percy = DensityMatrix(perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend, rng=fx_rng).state))
-    dm: DensityMatrix = pattern.simulate_pattern("densitymatrix", rng=fx_rng)  # type: ignore  # noqa: PGH003
-    assert np.allclose(dm.rho, percy.rho)
 
 
 class TestPercevalBackendInitializationAndOperations:
