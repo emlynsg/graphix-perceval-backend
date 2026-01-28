@@ -8,11 +8,13 @@ Copyright (C) 2026, QAT team (ENS-PSL, Inria, CNRS).
 
 import numpy as np
 import pytest
+from graphix.simulator import DefaultMeasureMethod
 from graphix.sim.statevec import StatevectorBackend, Statevec
 from graphix.sim.density_matrix import DensityMatrix
 from graphix.states import BasicStates, PlanarState
 from graphix.transpiler import Circuit
 from numpy.random import Generator
+from graphix import instruction
 from perceval import Source
 from graphix.fundamentals import Plane, ANGLE_PI
 from graphix.pauli import Pauli
@@ -26,6 +28,26 @@ from graphix_perceval_backend import (
     graphix_state_to_perceval_statevec,
     perceval_statevector_to_graphix_statevec,
 )
+
+from perceval import random_seed
+
+random_seed(2)
+
+TEST_BASIC_CIRCUITS = [
+    Circuit(1, instr=[instruction.H(0)]),
+    Circuit(1, instr=[instruction.S(0)]),
+    Circuit(1, instr=[instruction.X(0)]),
+    Circuit(1, instr=[instruction.Y(0)]),
+    Circuit(1, instr=[instruction.Z(0)]),
+    Circuit(1, instr=[instruction.I(0)]),
+    Circuit(1, instr=[instruction.RX(0, ANGLE_PI / 4)]),
+    Circuit(1, instr=[instruction.RY(0, ANGLE_PI / 4)]),
+    Circuit(1, instr=[instruction.RZ(0, ANGLE_PI / 4)]),
+    Circuit(2, instr=[instruction.CZ((0, 1))]),
+    Circuit(2, instr=[instruction.CNOT(0, 1)]),
+    Circuit(3, instr=[instruction.CCX(0, (1, 2))]),
+    Circuit(2, instr=[instruction.RZZ(0, 1, ANGLE_PI / 4)]),
+]
 
 
 class TestConversionFunctions:
@@ -76,10 +98,9 @@ class TestPercevalBackend:
     """Basic tests for the PercevalBackend class."""
 
     @staticmethod
-    def test_h_deterministic() -> None:
+    def test_h_deterministic(fx_rng) -> None:
         """Verify H gives deterministic "0" outcome."""
         circ = Circuit(1)
-        # circ.h(0)
         circ.h(0)
         pattern = circ.transpile().pattern
         pattern.standardize()
@@ -87,10 +108,9 @@ class TestPercevalBackend:
         source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
 
         # Run 20 times, should always get same result
-        results = []
         for _ in range(20):
             backend = PercevalBackend(source)
-            state = pattern.simulate_pattern(backend).state
+            state = pattern.simulate_pattern(backend, rng=fx_rng).state
             # Convert to computational basis outcome
             vec = perceval_statevector_to_graphix_statevec(state)
             comparison = np.array([1, 0])  # |0>
@@ -105,7 +125,6 @@ class TestPercevalBackend:
         circ.h(0)
         pattern = circ.transpile().pattern
         pattern.standardize()
-
         secrets = Secrets(r=True, a=True, theta=True)
         d = 10
         t = 10
@@ -113,10 +132,8 @@ class TestPercevalBackend:
         trap_scheme_param = TrappifiedSchemeParameters(d, t, w)
         client = Client(pattern=pattern, secrets=secrets, parameters=trap_scheme_param)
         protocol_runs = client.sample_canvas()
-
         outcomes = client.delegate_canvas(protocol_runs, StatevectorBackend)  # pyright: ignore[reportArgumentType]
         result = client.analyze_outcomes(protocol_runs, outcomes)
-
         assert result[2].nr_failed_test_rounds == 0
         assert result[2].computation_outcomes_count["0"] == d
 
@@ -129,7 +146,6 @@ class TestPercevalBackend:
         circ.h(0)
         pattern = circ.transpile().pattern
         pattern.standardize()
-
         secrets = Secrets(r=True, a=True, theta=True)
         d = 10
         t = 10
@@ -137,112 +153,61 @@ class TestPercevalBackend:
         trap_scheme_param = TrappifiedSchemeParameters(d, t, w)
         client = Client(pattern=pattern, secrets=secrets, parameters=trap_scheme_param)
         protocol_runs = client.sample_canvas()
-
         source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
         backend = lambda: PercevalBackend(source)
         outcomes = client.delegate_canvas(protocol_runs, backend)  # pyright: ignore[reportArgumentType]
         result = client.analyze_outcomes(protocol_runs, outcomes)
-
         assert result[2].nr_failed_test_rounds == 0
         assert result[2].computation_outcomes_count["0"] == d
 
-    @staticmethod
-    def test_basic_vs_svec_direct() -> None:
-        """Verify that PercevalBackend results match Graphix StatevectorBackend for a simple circuit."""
-        circ = Circuit(1)
-        circ.h(0)
-        circ.h(0)
-        pattern = circ.transpile().pattern
-        pattern.standardize()
-        source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-        backend = PercevalBackend(source)
-        percy = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend).state)
-        svec = circ.simulate_statevector().statevec
-        assert np.abs(np.dot(percy.flatten().conjugate(), svec.flatten())) == pytest.approx(1)
 
-    @staticmethod
-    def test_basic_vs_svec() -> None:
-        """Verify that PercevalBackend results match Graphix StatevectorBackend for a simple circuit."""
-        circ = Circuit(1)
-        circ.h(0)
-        circ.h(0)
-        pattern = circ.transpile().pattern
-        pattern.standardize()
-        source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-        backend = PercevalBackend(source)
-        percy = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend).state)
-        svec = pattern.simulate_pattern("statevector")  # type: ignore  # noqa: PGH003
-        assert np.abs(np.dot(percy.flatten().conjugate(), svec.flatten())) == pytest.approx(1)
+@pytest.mark.parametrize("circ", TEST_BASIC_CIRCUITS)
+def test_basic_vs_svec_direct(circ, fx_rng) -> None:
+    """Verify that PercevalBackend results match Graphix StatevectorBackend for a simple circuit."""
+    pattern = circ.transpile().pattern
+    pattern.remove_input_nodes()
+    pattern.perform_pauli_measurements()
+    pattern.standardize()
+    source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
+    backend = PercevalBackend(source)
+    measure_method = DefaultMeasureMethod()
+    percy = perceval_statevector_to_graphix_statevec(
+        pattern.simulate_pattern(backend, rng=fx_rng, measure_method=measure_method).state
+    )
+    svec = circ.simulate_statevector(rng=fx_rng).statevec
+    assert np.abs(np.dot(percy.flatten().conjugate(), svec.flatten())) == pytest.approx(1)
 
-    @staticmethod
-    def test_basic_vs_dm() -> None:
-        """Verify that PercevalBackend results match Graphix DensityMatrix backend for a simple circuit."""
-        circ = Circuit(1)
-        circ.h(0)
-        circ.h(0)
-        pattern = circ.transpile().pattern
-        pattern.standardize()
-        source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-        backend = PercevalBackend(source)
-        percy = DensityMatrix(perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend).state))
-        dm: DensityMatrix = pattern.simulate_pattern("densitymatrix")  # type: ignore  # noqa: PGH003
-        assert np.allclose(dm.rho, percy.rho)
 
-    @staticmethod
-    def test_basic_diff_emission() -> None:
-        """Verify that varying the source emission probability does not break the simulation logic."""
-        circ = Circuit(1)
-        circ.h(0)
-        circ.h(0)
-        pattern = circ.transpile().pattern
-        pattern.standardize()
-        source1 = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-        source2 = Source(emission_probability=0.999, multiphoton_component=0, indistinguishability=1)
-        backend1 = PercevalBackend(source1)
-        backend2 = PercevalBackend(source2)
-        percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1).state)
-        percy2 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend2).state)
-        assert np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten())) == pytest.approx(1)
+@pytest.mark.parametrize("circ", TEST_BASIC_CIRCUITS)
+def test_basic_vs_svec(circ, fx_rng) -> None:
+    """Verify that PercevalBackend results match Graphix StatevectorBackend for a simple circuit."""
+    pattern = circ.transpile().pattern
+    pattern.remove_input_nodes()
+    pattern.perform_pauli_measurements()
+    pattern.standardize()
+    source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
+    backend = PercevalBackend(source)
+    percy = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend, rng=fx_rng).state)
+    svec = pattern.simulate_pattern("statevector", rng=fx_rng)  # type: ignore  # noqa: PGH003
+    assert np.abs(np.dot(percy.flatten().conjugate(), svec.flatten())) == pytest.approx(1)
 
-    @staticmethod
-    def test_basic_diff_multiphoton() -> None:
-        """Verify that varying the source multiphoton component does not break the simulation logic."""
-        # client computation pattern definition
-        circ = Circuit(1)
-        circ.h(0)
-        circ.h(0)
-        pattern = circ.transpile().pattern
-        pattern.standardize()
-        source1 = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-        source2 = Source(emission_probability=1, multiphoton_component=0.005, indistinguishability=1)
-        backend1 = PercevalBackend(source1)
-        backend2 = PercevalBackend(source2)
-        percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1).state)
-        percy2 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend2).state)
-        assert np.abs(percy2.psi.flatten().conjugate(), percy2.psi.flatten()) != pytest.approx(1)
-        # Multiphoton component should theoretically introduce noise.
-        fidelity = np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten()))
-        assert 1.0 > fidelity
 
-    @staticmethod
-    def test_basic_diff_indisting() -> None:
-        """Verify that varying the photon indistinguishability does not break the simulation logic."""
-        # client computation pattern definition
-        circ = Circuit(1)
-        circ.h(0)
-        circ.h(0)
-        pattern = circ.transpile().pattern
-        pattern.standardize()
-        source1 = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
-        source2 = Source(emission_probability=1, multiphoton_component=0, indistinguishability=0.95)
-        backend1 = PercevalBackend(source1)
-        backend2 = PercevalBackend(source2)
-        percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1).state)
-        percy2 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend2).state)
+@pytest.mark.parametrize("circ", TEST_BASIC_CIRCUITS)
+def test_basic_vs_dm(circ, fx_rng) -> None:
+    """Verify that PercevalBackend results match Graphix DensityMatrix backend for a simple circuit."""
+    pattern = circ.transpile().pattern
+    pattern.remove_input_nodes()
+    pattern.perform_pauli_measurements()
+    pattern.standardize()
+    source = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
+    backend = PercevalBackend(source)
+    percy = DensityMatrix(perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend, rng=fx_rng).state))
+    dm: DensityMatrix = pattern.simulate_pattern("densitymatrix", rng=fx_rng)  # type: ignore  # noqa: PGH003
+    assert np.allclose(dm.rho, percy.rho)
 
-        # Indistinguishability < 1 introduces noise/mixed states, so fidelity should drop
-        fidelity = np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten()))
-        assert 1.0 > fidelity
+
+class TestPercevalBackendInitializationAndOperations:
+    """Tests for PercevalBackend initialization and basic operations."""
 
     @pytest.mark.parametrize(
         "state",
@@ -327,6 +292,86 @@ class TestPercevalBackend:
 
             percy_vec = perceval_statevector_to_graphix_statevec(backend.state)
             assert np.abs(np.dot(percy_vec.psi.flatten().conjugate(), vec.psi.flatten())) == pytest.approx(1)
+
+    def test_fail_high_multiphoton(self, fx_rng) -> None:
+        """Verify that varying the source multiphoton component does not break the simulation logic."""
+        circ = Circuit(1)
+        circ.h(0)
+        circ.h(0)
+        pattern = circ.transpile().pattern
+        pattern.remove_input_nodes()
+        pattern.perform_pauli_measurements()
+        pattern.standardize()
+        source = Source(
+            emission_probability=1,
+            multiphoton_component=0.5,
+            indistinguishability=1,
+        )
+        backend = PercevalBackend(source)
+        state = pattern.simulate_pattern(backend, rng=fx_rng).state
+        with pytest.raises(ValueError, match="Invalid Fock state with 2 photons in one mode"):
+            perceval_statevector_to_graphix_statevec(state)
+
+    def test_pass_low_multiphoton(self, fx_rng) -> None:
+        """Verify that varying the source multiphoton component does not break the simulation logic."""
+        circ = Circuit(1)
+        circ.h(0)
+        circ.h(0)
+        pattern = circ.transpile().pattern
+        pattern.remove_input_nodes()
+        pattern.perform_pauli_measurements()
+        pattern.standardize()
+        source = Source(
+            emission_probability=1,
+            multiphoton_component=0.01,
+            indistinguishability=1,
+        )
+        backend = PercevalBackend(source)
+        state = pattern.simulate_pattern(backend, rng=fx_rng).state
+        percy = perceval_statevector_to_graphix_statevec(state)
+        assert np.abs(np.dot(percy.flatten().conjugate(), percy.flatten())) == pytest.approx(1.0)
+
+    def test_basic_diff_indisting(self, fx_rng) -> None:
+        """Verify that varying the photon indistinguishability does not break the simulation logic."""
+        circ = Circuit(1)
+        circ.h(0)
+        circ.h(0)
+        pattern = circ.transpile().pattern
+        pattern.remove_input_nodes()
+        pattern.perform_pauli_measurements()
+        pattern.standardize()
+        source1 = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
+        source2 = Source(
+            emission_probability=1,
+            multiphoton_component=0,
+            indistinguishability=0.7,
+        )
+        backend1 = PercevalBackend(source1)
+        backend2 = PercevalBackend(source2)
+        percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1, rng=fx_rng).state)
+        percy2 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend2, rng=fx_rng).state)
+        assert np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten())) == pytest.approx(1)
+
+    def test_basic_diff_emission(self, fx_rng) -> None:
+        """Verify that varying the source emission probability does not break the simulation logic."""
+        circ = Circuit(1)
+        circ.h(0)
+        circ.h(0)
+        pattern = circ.transpile().pattern
+        pattern.remove_input_nodes()
+        pattern.perform_pauli_measurements()
+        pattern.standardize()
+        source1 = Source(emission_probability=1, multiphoton_component=0, indistinguishability=1)
+        source2 = Source(
+            emission_probability=0.9,
+            multiphoton_component=0,
+            indistinguishability=1,
+        )
+        backend1 = PercevalBackend(source1)
+        backend2 = PercevalBackend(source2)
+        percy1 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend1, rng=fx_rng).state)
+        percy2 = perceval_statevector_to_graphix_statevec(pattern.simulate_pattern(backend2, rng=fx_rng).state)
+        assert np.abs(np.dot(percy1.flatten().conjugate(), percy2.flatten())) == pytest.approx(1)
 
     def test_deterministic_measure_one(self, fx_rng: Generator):
         """Verify deterministic measurement outcomes for a 2-qubit entangled system."""

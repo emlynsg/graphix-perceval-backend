@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from graphix_perceval_backend.perceval_backend import (
     PercevalBackend,
+    PercevalInterfaceError,
     graphix_planar_state_to_perceval_statevec,
     graphix_state_to_perceval_statevec,
     perceval_statevector_to_graphix_statevec,
@@ -14,6 +15,7 @@ from graphix_perceval_backend.perceval_backend import (
 
 __all__ = [
     "PercevalBackend",
+    "PercevalInterfaceError",
     "graphix_planar_state_to_perceval_statevec",
     "graphix_state_to_perceval_statevec",
     "perceval_statevector_to_graphix_statevec",

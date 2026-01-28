@@ -14,13 +14,16 @@ import numpy.typing as npt
 import perceval as pcvl
 import perceval.components as comp
 from graphix.command import CommandKind
-from graphix.fundamentals import ANGLE_PI, Plane, angle_to_rad
+from graphix.fundamentals import Plane, angle_to_rad
 from graphix.sim.base_backend import Backend, NodeIndex
 from graphix.sim.statevec import Statevec
 from graphix.states import BasicStates, PlanarState
+from perceval import random_seed
 from perceval.components import catalog
 
 PRECISION = 1e-15
+
+random_seed(2)
 
 
 class PercevalState:
@@ -87,7 +90,7 @@ class PercevalState:
             return self.sim.evolve(state)
         return self.sim.evolve(self.state)
 
-    def measure(self, modes: list[int], postselect: pcvl.PostSelect | None = None) -> pcvl.BasicState:
+    def sample_measure(self, modes: list[int], postselect: pcvl.PostSelect | None = None) -> pcvl.BasicState:
         """Measure the specified modes and return sampled state.
 
         Parameters
@@ -171,7 +174,7 @@ class PercevalState:
 
         self.sim.clear_heralds()
 
-    def measure_qubit(self, index: int, circuit: pcvl.Circuit) -> int:
+    def measure(self, index: int, circuit: pcvl.Circuit) -> int:
         """Measure a qubit after applying a measurement basis circuit.
 
         Parameters
@@ -190,7 +193,7 @@ class PercevalState:
         self.sim.set_circuit(circuit)
         self.state = self.evolve(self.state)
         ps = pcvl.PostSelect("([0] > 0 & [1] == 0) | ([0] == 0 & [1] > 0)")
-        sampled_outcome = self.measure([2 * index, 2 * index + 1], postselect=ps)
+        sampled_outcome = self.sample_measure([2 * index, 2 * index + 1], postselect=ps)
 
         # logical |0> is |1, 0> (photon in mode 0) -> result 0
         # logical |1> is |0, 1> (photon in mode 1) -> result 1
@@ -398,7 +401,7 @@ class PercevalBackend(Backend):
                 meas_circ.add(2 * index + 1, comp.PS(np.pi / 2))
                 meas_circ.add(2 * index, comp.BS.H())
 
-        result = self.state.measure_qubit(index, meas_circ)
+        result = self.state.measure(index, meas_circ)
         self.node_index.remove(node)
         return result
 
@@ -423,7 +426,7 @@ class PercevalBackend(Backend):
             if cmd.kind == CommandKind.X:
                 correct_circ.add(2 * index, comp.PERM([1, 0]))
             elif cmd.kind == CommandKind.Z:
-                correct_circ.add(2 * index + 1, comp.PS(ANGLE_PI))
+                correct_circ.add(2 * index + 1, comp.PS(np.pi))
             self.state.sim.set_circuit(correct_circ)
             self.state.state = self.state.evolve(self.state.state)
 
@@ -527,10 +530,10 @@ def perceval_statevector_to_graphix_statevec(psvec: pcvl.StateVector) -> Stateve
 
     Raises
     ------
-    ValueError
+    PercevalInterfaceError
         If the number of modes is not even.
 
-    """
+    """  # noqa: DOC501
     n_qubit = psvec.m // 2
     if psvec.m % 2 != 0:
         msg = f"Expected even number of modes for path encoding, got {psvec.m}"
@@ -544,6 +547,9 @@ def perceval_statevector_to_graphix_statevec(psvec: pcvl.StateVector) -> Stateve
         index = 0
         for i in range(n_qubit):
             # Check if photon is in mode 2i+1 (logical |1>)
+            if basic_state[2 * i + 1] > 1:
+                notice = "Invalid Fock state with 2 photons in one mode"
+                raise PercevalInterfaceError(notice)
             if basic_state[2 * i + 1] == 1:
                 index += 2 ** (n_qubit - 1 - i)
         data[index] = amplitude
@@ -624,3 +630,7 @@ def graphix_state_to_perceval_statevec(statevec: npt.NDArray) -> pcvl.StateVecto
             result += term
 
     return result if result is not None else pcvl.StateVector()
+
+
+class PercevalInterfaceError(Exception):
+    """Exception subclass for errors with converting between Perceval and Graphix."""
