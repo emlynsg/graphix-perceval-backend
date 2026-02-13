@@ -315,7 +315,7 @@ class PercevalBackend(Backend):
                 msg = "input state must be a single qubit state"
                 raise ValueError(msg)
         else:
-            psi = data.get_statevector()
+            psi = data.to_statevector()
 
         for _ in nodes_list:
             self.state.add_qubit(psi)
@@ -374,6 +374,7 @@ class PercevalBackend(Backend):
         index = self.node_index.index(node)
 
         meas_circ = pcvl.Circuit(2 * self.nqubit)
+        measurement = measurement.to_bloch()
         match measurement.plane:
             # YZ and XZ not properly tested, only used XY plane measurements
             case Plane.XY:
@@ -405,7 +406,7 @@ class PercevalBackend(Backend):
         self.node_index.remove(node)
         return result
 
-    def correct_byproduct(self, cmd, measure_method) -> None:  # type: ignore[no-untyped-def]
+    def correct_byproduct(self, cmd) -> None:  # type: ignore[no-untyped-def]
         """Apply byproduct correction.
 
         Corrects for the X or Z byproduct operators by applying the X or Z gate
@@ -415,20 +416,17 @@ class PercevalBackend(Backend):
         ----------
         cmd : Command
             Byproduct correction command.
-        measure_method : MeasureMethod
-            Measurement method providing results to check correction condition.
 
         """
-        if np.mod(sum(measure_method.get_measure_result(j) for j in cmd.domain), 2) == 1:
-            index = self.node_index.index(cmd.node)
-            correct_circ = pcvl.Circuit(2 * self.nqubit)
+        index = self.node_index.index(cmd.node)
+        correct_circ = pcvl.Circuit(2 * self.nqubit)
 
-            if cmd.kind == CommandKind.X:
-                correct_circ.add(2 * index, comp.PERM([1, 0]))
-            elif cmd.kind == CommandKind.Z:
-                correct_circ.add(2 * index + 1, comp.PS(np.pi))
-            self.state.sim.set_circuit(correct_circ)
-            self.state.state = self.state.evolve(self.state.state)
+        if cmd.kind == CommandKind.X:
+            correct_circ.add(2 * index, comp.PERM([1, 0]))
+        elif cmd.kind == CommandKind.Z:
+            correct_circ.add(2 * index + 1, comp.PS(np.pi))
+        self.state.sim.set_circuit(correct_circ)
+        self.state.state = self.state.evolve(self.state.state)
 
     def apply_clifford(self, node: int, clifford) -> None:
         """Apply single-qubit Clifford gate.
@@ -572,7 +570,7 @@ def graphix_planar_state_to_perceval_statevec(
         Perceval StateVector (2-mode path encoding).
 
     """
-    statevector = planar_state.get_statevector()
+    statevector = planar_state.to_statevector()
     alpha = statevector[0]
     beta = statevector[1]
     return alpha * pcvl.StateVector([1, 0]) + beta * pcvl.StateVector([0, 1])
