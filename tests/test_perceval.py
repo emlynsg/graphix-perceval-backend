@@ -57,7 +57,7 @@ class TestConversionFunctions:
     @staticmethod
     def test_plus_state():
         """Test |+⟩ state conversion."""
-        graphix_plus = BasicStates.PLUS.get_statevector()
+        graphix_plus = BasicStates.PLUS.to_statevector()
         perceval_state = graphix_state_to_perceval_statevec(graphix_plus)
         back_to_graphix = perceval_statevector_to_graphix_statevec(perceval_state)
         # Check that back_to_graphix is a Statevec and compare data
@@ -66,7 +66,7 @@ class TestConversionFunctions:
     @staticmethod
     def test_zero_state():
         """Test |0⟩ state conversion."""
-        graphix_zero = BasicStates.ZERO.get_statevector()
+        graphix_zero = BasicStates.ZERO.to_statevector()
         perceval_state = graphix_state_to_perceval_statevec(graphix_zero)
         back_to_graphix = perceval_statevector_to_graphix_statevec(perceval_state)
         assert np.allclose(graphix_zero, back_to_graphix.psi.flatten())
@@ -74,7 +74,7 @@ class TestConversionFunctions:
     @staticmethod
     def test_one_state():
         """Test |1⟩ state conversion."""
-        graphix_one = BasicStates.ONE.get_statevector()
+        graphix_one = BasicStates.ONE.to_statevector()
         perceval_state = graphix_state_to_perceval_statevec(graphix_one)
         back_to_graphix = perceval_statevector_to_graphix_statevec(perceval_state)
         assert np.allclose(graphix_one, back_to_graphix.psi.flatten())
@@ -235,7 +235,7 @@ class TestPercevalBackendInitializationAndOperations:
         backend = PercevalBackend(source)
         backend.add_nodes(hadamardpattern.input_nodes, data=state)
         percy_vec = perceval_statevector_to_graphix_statevec(backend.state)
-        target_psi = state.get_statevector()
+        target_psi = state.to_statevector()
         assert np.allclose(target_psi.flatten(), percy_vec.psi.flatten())
 
     def test_init_svec(self, hadamardpattern) -> None:
@@ -376,7 +376,7 @@ class TestPercevalBackendInitializationAndOperations:
             backend.add_nodes(nodes=nodes, data=states)
 
             backend.entangle_nodes(edge=(nodes[0], nodes[1]))
-            measurement = Measurement(plane=Plane.XY, angle=0)
+            measurement = Measurement.XY(0)
             node_to_measure = backend.node_index[0]
             result = backend.measure(node=node_to_measure, measurement=measurement)
             assert result == expected_result
@@ -394,7 +394,7 @@ class TestPercevalBackendInitializationAndOperations:
 
             for i in range(1, n_neighbors + 1):
                 backend.entangle_nodes(edge=(nodes[0], i))
-            measurement = Measurement(plane=Plane.XY, angle=0)
+            measurement = Measurement.XY(0)
             node_to_measure = backend.node_index[0]
             result = backend.measure(node=node_to_measure, measurement=measurement)
             assert result == 0
@@ -423,7 +423,7 @@ class TestPercevalBackendInitializationAndOperations:
                     backend.entangle_nodes(edge=(other, dummy))
 
             # Same measurement for all traps
-            measurement = Measurement(plane=Plane.XY, angle=0)
+            measurement = Measurement.XY(0)
 
             for trap in nodes[:n_traps]:
                 node_to_measure = trap
@@ -450,7 +450,7 @@ class TestPercevalBackendInitializationAndOperations:
 
             for i in range(1, n_neighbors + 1):
                 backend.entangle_nodes(edge=(nodes[0], i))
-            measurement = Measurement(plane=Plane.XY, angle=0)
+            measurement = Measurement.XY(0)
             node_to_measure = backend.node_index[0]
             result = backend.measure(node=node_to_measure, measurement=measurement)
             assert result == expected_result
